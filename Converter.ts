@@ -1,51 +1,6 @@
-import { readdir, PathLike, stat, writeFileSync, readFileSync, renameSync } from 'fs';
 import { funcReplacer, escRegex, trimLeft, combineStrRegex } from './Utils';
 
-function walk(dir: PathLike, modify: (file: string) => void, done: (err: NodeJS.ErrnoException, res?: string[]) => void) {
-    let results: string[] = [];
-    readdir(dir, (err, list) => {
-        if (err) return done(err);
-        let i = 0;
-        (function next() {
-            let file = list[i++];
-            if (!file) return done(new Error('No file found'), results);
-            file = dir + '/' + file;
-            stat(file, (_err, stats) => {
-                if (stats && stats.isDirectory()) {
-                    walk(file, modify, (_errr, res) => {
-                        if (res) {
-                            results = results.concat(res);
-                            next();
-                        }
-                    });
-                } else {
-                    results.push(file);
-                    modify(file);
-                    next();
-                }
-            });
-        })();
-    });
-}
-
-// walk('Converter/Test', (file) => fix(file), (err) => console.error(err));
-// walk('Game/Scenes', (file) => fix(file, true), (err) => console.error(err));
-fix('Converter/Test/.as');
-
-function fix(file: string, overwrite?: boolean) {
-    if (file.endsWith('.as')) {
-        console.log('Fixing ' + file);
-
-        const data = readFileSync(file, 'utf-8');
-        const newValue = fixText(data);
-        const newFile = file.replace('.as', '.ts');
-        if (overwrite)
-            renameSync(file, newFile);
-        writeFileSync(newFile, newValue, 'utf-8');
-    }
-}
-
-function fixText(text: string): string {
+export function fixText(text: string): string {
     const lines = text.split('\n');
 
     let removeCurlyBraceOpen = 0;
@@ -282,7 +237,8 @@ function fixText(text: string): string {
     text = fixCharacterClass(text);
     text = fixPlayerClass(text);
     text = fixMonsterClass(text);
-    text = fixBaseContent(text, className);
+    if (className)
+        text = fixBaseContent(text, className);
 
     // Enums
     text = text.replace(escRegex('StatusAffects.'), 'StatusEffectType.');
@@ -642,7 +598,7 @@ function fixBaseContent(text: string, className: string): string {
     text = text.replace(escRegex('allVaginaDescript()'), 'describeEveryVagina(player)');
     text = funcReplacer(text, 'dynStats(', ');',
         (match, ...stats) => {
-            let op;
+            let op: string;
             return stats.reduce((prev, curr, index) => {
                 if (index % 2 === 0) {
                     op = curr[curr.length - 2];
@@ -838,6 +794,7 @@ function fixPlayerClass(text: string): string {
                 case '1': return `growSmallestBreastRow(player, ${arg1}, ${arg2}, ${arg3})`;
                 case '2': return `growTopBreastRowDownwards(player, ${arg1}, ${arg2}, ${arg3})`;
                 case '3': return `growTopBreastRow(player, ${arg1}, ${arg2}, ${arg3})`;
+                default: return match;
             }
         });
     text = text.replace(escRegex('player.minLust'), 'player.stats.minLust');

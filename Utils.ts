@@ -12,7 +12,12 @@ export function combineStrRegex(str: string, regex: RegExp): RegExp {
     return new RegExp(new RegExp(str).source + regex.source, 'g');
 }
 
-function getArgs(text: StringStream): string[] {
+/**
+ * 0: total match
+ * 1...n: each match
+ * @param text 
+ */
+function getArgs(text: StringStream): string[] | undefined {
     const startPos = text.pos;
     const args = [];
     let matchStr;
@@ -72,9 +77,9 @@ export function funcReplacer(text: string, start: string | RegExp, end: string |
     const startRegex = new RegExp(typeof start === 'string' ? escRegex(start).source : start.source);
     const endRegex = new RegExp(typeof end === 'string' ? escRegex(end).source : end.source);
     let startPos: number;
-    let startMatch: RegExpMatchArray;
-    let argsMatch: string[];
-    let endMatch: RegExpMatchArray;
+    let startMatch: RegExpMatchArray | undefined;
+    let argsMatch: string[] | undefined;
+    let endMatch: RegExpMatchArray | undefined;
     let startMatchStr: string;
     let argsMatchStr: string;
     let endMatchStr: string;
@@ -82,19 +87,19 @@ export function funcReplacer(text: string, start: string | RegExp, end: string |
 
     do {
         startMatch = textStream.match(startRegex);
-        if (startMatch) {
-            startMatchStr = startMatch.shift();
+        if (startMatch && startMatch.index !== undefined && startMatch.length > 0) {
+            startMatchStr = startMatch.shift()!;
             startPos = textStream.pos + startMatch.index;
             textStream.pos += startMatch.index + startMatchStr.length;
 
             argsMatch = getArgs(textStream);
-            if (argsMatch !== undefined) {
-                argsMatchStr = argsMatch.shift();
+            if (argsMatch !== undefined && argsMatch.length > 0) {
+                argsMatchStr = argsMatch.shift()!;
                 textStream.pos += argsMatchStr.length;
 
                 endMatch = textStream.match(endRegex);
-                if (endMatch) {
-                    endMatchStr = endMatch.shift();
+                if (endMatch && endMatch.index !== undefined && endMatch.length > 0) {
+                    endMatchStr = endMatch.shift()!;
                     textStream.pos += endMatch.index + endMatchStr.length;
 
                     replaceStr = callback.apply(undefined, [startMatchStr + argsMatchStr + endMatchStr].concat(startMatch, argsMatch, endMatch)) as string;

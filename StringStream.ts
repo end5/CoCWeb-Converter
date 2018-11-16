@@ -6,7 +6,7 @@ export class StringStream {
         this.str = str;
     }
 
-    private advStream(amount?: number) {
+    private advStream(amount: number = 0) {
         this.pos += +amount;
     }
 
@@ -34,12 +34,13 @@ export class StringStream {
     /**
      * Returns the next character in the stream and advances it. Returns undefined when at end of string
      */
-    public next(): string {
+    public next(): string | undefined {
         if (!this.eos()) {
             const char = this.str[this.pos];
             this.advStream();
             return char;
         }
+        return;
     }
 
     /**
@@ -47,9 +48,10 @@ export class StringStream {
      * Otherwise, undefined is returned.
      * @param match A character or regular expression
      */
-    public eat(match: string | RegExp): string {
+    public eat(match: string | RegExp): string | undefined {
         if (match instanceof RegExp && match.test(this.str[this.pos])) return this.next();
         else if (this.str[this.pos] === match) return this.next();
+        return;
     }
 
     /**
@@ -66,12 +68,13 @@ export class StringStream {
      * Advances stream pos to end of first match. If string is passed, it is converted to a RegExg.
      * @param pattern A string or RegExg
      */
-    public match(pattern: RegExp): RegExpMatchArray {
+    public match(pattern: RegExp): RegExpMatchArray | undefined {
         const match = pattern.exec(this.str.slice(this.pos));
         if (match) {
             // this.advStream(match.index);
             return match;
         }
+        return;
     }
 
     /**
@@ -89,7 +92,7 @@ export class StringStream {
      * @param deleteCount The number of characters to remove.
      * @param items Elements to insert into the strings in place of the deleted elements.
      */
-    public splice(start: number, deleteCount?: number, ...items: string[]): string {
+    public splice(start: number, deleteCount: number = 0, ...items: string[]): string {
         const out = this.str.slice(start, start + deleteCount);
         this.str = this.str.slice(0, start) + items.join('') + this.str.slice(start + deleteCount);
         return out;

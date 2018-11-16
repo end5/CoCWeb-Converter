@@ -4,8 +4,13 @@
         "module": "commonjs",
         "sourceMap": true,
         "outDir": "Build",
+        "strict": true,
+        "noUnusedLocals": true,
+        "forceConsistentCasingInFileNames": true,
+        "noImplicitReturns": true,
     },
-    "include": [
-        "Converter.ts",
+    "exclude": [
+        "Build",
+        "dist",
     ]
 }
