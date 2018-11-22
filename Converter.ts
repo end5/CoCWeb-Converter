@@ -281,7 +281,7 @@ export function fixText(text: string): string {
     text = text.replace(escRegex('clearOutput()'), 'CView.clear()');
     text = text.replace(escRegex('export function timeChange'), 'public timeChange');
     text = text.replace(escRegex('export function timeChangeLarge'), 'public timeChangeLarge');
-    text = funcReplacer(text, /player\.body\.\w+\.get\(([^\d])/, ')', (match, p1, p2) => p1 + p2);
+    text = funcReplacer(text, /player\.body\.\w+\.get\(([^\d])/, ')', (match, p1, p2) => p1 + (p2 !== undefined ? p2 : ''));
     text = text.replace(/player\.body\.tail\.type\s*>\s*TailType.NONE/g, 'player.body.tails.length > 0');
 
     return text;
