@@ -207,9 +207,9 @@ export function fixText(text: string): string {
 
     text = funcReplacer(text, 'rand(', ')', (match, arg) => `randInt(${arg})`);
     text = text.replace(escRegex('camp.returnToCampUseOneHour'), 'passTime(1)');
-    text = text.replace(escRegex('camp.returnToCampUseTwoHour'), 'passTime(2)');
-    text = text.replace(escRegex('camp.returnToCampUseFourHour'), 'passTime(4)');
-    text = text.replace(escRegex('camp.returnToCampUseEightHour'), 'passTime(8)');
+    text = text.replace(escRegex('camp.returnToCampUseTwoHours'), 'passTime(2)');
+    text = text.replace(escRegex('camp.returnToCampUseFourHours'), 'passTime(4)');
+    text = text.replace(escRegex('camp.returnToCampUseEightHours'), 'passTime(8)');
     text = text.replace(escRegex('Appearance.'), '');
     text = text.replace(/game\.(\w)/g, (match, p1) => p1);
     text = text.replace(escRegex('kGAMECLASS.'), '');
