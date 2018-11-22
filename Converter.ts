@@ -199,16 +199,19 @@ export function fixText(text: string): string {
             flagText += `${flag}: 0,\n`;
         }
         flagText += '};\n';
-        flagText += `User.flags.set(FlagType.${className}, ${className}Flags);\n`;
+        flagText += `Flags.set(FlagType.${className}, ${className}Flags);\n`;
 
         text = flagText + text;
     }
-    // flagText += 'const player = User.char;';
+    // flagText += 'const player = CharDict.player;';
 
     text = funcReplacer(text, 'rand(', ')', (match, arg) => `randInt(${arg})`);
-    text = text.replace(escRegex('camp.'), '');
+    text = text.replace(escRegex('camp.returnToCampUseOneHour'), 'passTime(1)');
+    text = text.replace(escRegex('camp.returnToCampUseTwoHour'), 'passTime(2)');
+    text = text.replace(escRegex('camp.returnToCampUseFourHour'), 'passTime(4)');
+    text = text.replace(escRegex('camp.returnToCampUseEightHour'), 'passTime(8)');
     text = text.replace(escRegex('Appearance.'), '');
-    text = text.replace(escRegex('game.'), '');
+    text = text.replace(/game\.(\w)/g, (match, p1) => p1);
     text = text.replace(escRegex('kGAMECLASS.'), '');
     text = text.replace(escRegex('CoC.'), '');
     text = text.replace(escRegex('kFLAGS.'), `${className}Flags.`);
@@ -237,8 +240,7 @@ export function fixText(text: string): string {
     text = fixCharacterClass(text);
     text = fixPlayerClass(text);
     text = fixMonsterClass(text);
-    if (className)
-        text = fixBaseContent(text, className);
+    text = fixBaseContent(text, className);
 
     // Enums
     text = text.replace(escRegex('StatusAffects.'), 'StatusEffectType.');
@@ -290,8 +292,8 @@ export function fixText(text: string): string {
 function fixInventory(text: string): string {
     text = funcReplacer(text, 'inventory.takeItem(', ')',
         (match, item, next) => {
-            const type = item.split('Name')[0];
-            return `return player.inventory.items.createAdd(player, ItemType.${type}, ${item}, ${next})`;
+            // const type = item.split('Name')[0];
+            return `return player.inventory.items.createAdd(player, ${item}, ${next})`;
         }
     );
     text = text.replace(escRegex('inventory.hasItemInStorage'), 'player.inventory.items.has');
@@ -502,7 +504,7 @@ function fixItems(text: string): string {
     return text;
 }
 
-function fixBaseContent(text: string, className: string): string {
+function fixBaseContent(text: string, className?: string): string {
     text = text.replace(/getGame\(\)\.?/g, '');
     // Unknown - cheatTime
     // OK - isHalloween
@@ -511,11 +513,11 @@ function fixBaseContent(text: string, className: string): string {
     // OK - isThanksgiving
     text = text.replace(escRegex('showStats'), 'MainScreen.stats.show()');
     text = text.replace(escRegex('statScreenRefresh();'), '');
-    text = text.replace(escRegex('cleanupAfterCombat()'), 'return { next: returnToCampUseOneHour }');
-    text = text.replace(escRegex('cleanupAfterCombat'), 'returnToCampUseOneHour');
+    text = text.replace(escRegex('cleanupAfterCombat()'), 'return { next: passTime(1) }');
+    text = text.replace(escRegex('cleanupAfterCombat'), 'passTime(1)');
     // Manual - combatRoundOver
     // Manual - enemyAI
-    text = funcReplacer(text, 'spriteSelect(', ')', (match, ...sprite) => `CView.sprite(SpriteName.${className}); // ${sprite}`);
+    if (className) text = funcReplacer(text, 'spriteSelect(', ')', (match, ...sprite) => `CView.sprite(SpriteName.${className}); // ${sprite}`);
     text = text.replace(escRegex('hideStats()'), '');
     text = text.replace(escRegex('hideUpDown()'), '');
     text = text.replace(escRegex('createCallBackFunction'), 'choiceWrap');
@@ -738,14 +740,14 @@ function fixPlayerClass(text: string): string {
     text = text.replace(escRegex('player.exploredLake'), 'ExplorationFlags.LAKE');
     // Unused - pregnancyUpdate
     // Manual - itemSlot[1-5]
-    text = text.replace(escRegex('player.modArmorName'), 'player.inventory.equipment.modifiedArmorDesc');
+    text = text.replace(escRegex('player.modArmorName'), 'player.inventory.modifiedArmorDesc');
     // Unused - armorBaseDef
     // Unused - weaponBaseAttack
-    text = text.replace(escRegex('player.armor'), 'player.inventory.equipment.armor');
-    text = funcReplacer(text, 'player.setArmor(', ')', (match, armor) => `player.inventory.equipment.equippedArmorSlot.equip(${armor})`);
+    text = text.replace(escRegex('player.armor'), 'player.inventory.armor');
+    text = funcReplacer(text, 'player.setArmor(', ')', (match, armor) => `player.inventory.equippedArmorSlot.equip(${armor})`);
     // Unused - setArmorHiddenField
-    text = text.replace(escRegex('player.weapon'), 'player.inventory.equipment.weapon');
-    text = funcReplacer(text, 'player.setWeapon(', ')', (match, weapon) => `player.inventory.equipment.equippedWeaponSlot.equip(${weapon})`);
+    text = text.replace(escRegex('player.weapon'), 'player.inventory.weapon');
+    text = funcReplacer(text, 'player.setWeapon(', ')', (match, weapon) => `player.inventory.equippedWeaponSlot.equip(${weapon})`);
     // Unused - setWeaponHiddenField
     // Unused - reduceDamage
     // Manual - takeDamage
@@ -898,21 +900,21 @@ function fixCreatureClass(text: string, name: string): string {
     text = text.replace(combineStrRegex(name, /\.a([^\w])/g), (match, p1) => `${name}.desc.a${p1} `);
     text = text.replace(escRegex(`${name}.capitalA`), `${name}.desc.capitalA`);
 
-    text = text.replace(escRegex(`${name}.weaponName`), `${name}.inventory.equipment.weapon.displayName`);
-    text = text.replace(escRegex(`${name}.weaponVerb`), `${name}.inventory.equipment.weapon.verb`);
+    text = text.replace(escRegex(`${name}.weaponName`), `${name}.inventory.weapon.displayName`);
+    text = text.replace(escRegex(`${name}.weaponVerb`), `${name}.inventory.weapon.verb`);
     // This is for the calcuated attack, not weapon attack
     // Manual - assignment
     text = text.replace(escRegex(`${name}.weaponAttack`), `${name}.combat.stats.weaponAttack`);
     // Unknown - weaponPerk
-    text = text.replace(escRegex(`${name}.weaponValue`), `${name}.inventory.equipment.weapon.value`);
+    text = text.replace(escRegex(`${name}.weaponValue`), `${name}.inventory.weapon.value`);
 
-    text = text.replace(escRegex(`${name}.armorName`), `${name}.inventory.equipment.armor.displayName`);
-    text = text.replace(escRegex(`${name}.armorVerb`), `${name}.inventory.equipment.armor.verb`);
+    text = text.replace(escRegex(`${name}.armorName`), `${name}.inventory.armor.displayName`);
+    text = text.replace(escRegex(`${name}.armorVerb`), `${name}.inventory.armor.verb`);
     // This is for the calcuated defense, not armor defense
     // Manual - assignment
     text = text.replace(escRegex(`${name}.armorDef`), `${name}.combat.stats.defense`);
     // Unknown - armorPerk
-    text = text.replace(escRegex(`${name}.armorValue`), `${name}.inventory.equipment.armor.value`);
+    text = text.replace(escRegex(`${name}.armorValue`), `${name}.inventory.armor.value`);
 
     text = text.replace(escRegex(`${name}.str`), `${name}.stats.str`);
     text = text.replace(escRegex(`${name}.tou`), `${name}.stats.tou`);
@@ -966,30 +968,30 @@ function fixCreatureClass(text: string, name: string): string {
     // Manual - nipplesPierced
     // Manual - nipplesPShort
     // Manual - nipplesPLong
-    text = text.replace(escRegex(`${name}.lipPierced`), `${name}.inventory.equipment.piercings.lip.isEquiped()`);
-    text = text.replace(escRegex(`${name}.lipPShort`), `${name}.inventory.equipment.piercings.lip.item.shortDesc`);
-    text = text.replace(escRegex(`${name}.lipPLong`), `${name}.inventory.equipment.piercings.lip.item.longDesc`);
-    text = text.replace(escRegex(`${name}.tonguePierced`), `${name}.inventory.equipment.piercings.tongue.isEquipped()`);
-    text = text.replace(escRegex(`${name}.tonguePShort`), `${name}.inventory.equipment.piercings.tongue.item.shortDesc`);
-    text = text.replace(escRegex(`${name}.tonguePLong`), `${name}.inventory.equipment.piercings.tongue.item.longDesc`);
-    text = text.replace(escRegex(`${name}.eyebrowPierced`), `${name}.inventory.equipment.piercings.eyebrow.isEquipped()`);
-    text = text.replace(escRegex(`${name}.eyebrowPShort`), `${name}.inventory.equipment.piercings.eyebrow.item.shortDesc`);
-    text = text.replace(escRegex(`${name}.eyebrowPLong`), `${name}.inventory.equipment.piercings.eyebrow.item.longDesc`);
-    text = text.replace(escRegex(`${name}.earsPierced`), `${name}.inventory.equipment.piercings.isEquipped()`);
-    text = text.replace(escRegex(`${name}.earsPShort`), `${name}.inventory.equipment.piercings.item.shortDesc`);
-    text = text.replace(escRegex(`${name}.earsPLong`), `${name}.inventory.equipment.piercings.item.longDesc`);
-    text = text.replace(escRegex(`${name}.nosePierced`), `${name}.inventory.equipment.piercings.isEquipped()`);
-    text = text.replace(escRegex(`${name}.nosePShort`), `${name}.inventory.equipment.piercings.item.shortDesc`);
-    text = text.replace(escRegex(`${name}.nosePLong`), `${name}.inventory.equipment.piercings.item.longDesc`);
-    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.labiaPierced/g), `${name}.inventory.equipment.piercings.labia.isEquipped()`);
-    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.labiaPShort/g), `${name}.inventory.equipment.piercings.labia.item.shortDesc`);
-    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.labiaPLong/g), `${name}.inventory.equipment.piercings.labia.item.longDesc`);
-    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.clitPierced/g), `${name}.inventory.equipment.piercings.clit.isEquipped()`);
-    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.clitPShort/g), `${name}.inventory.equipment.piercings.clit.item.shortDesc`);
-    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.clitPLong/g), `${name}.inventory.equipment.piercings.clit.item.longDesc`);
-    text = text.replace(combineStrRegex(name, /\.cocks\[([^\]]+)\]\.isPierced/g), (match, p1) => `${name}.inventory.equipment.piercings.cocks.get(${p1}).isEquipped()`);
-    text = text.replace(combineStrRegex(name, /\.cocks\[([^\]]+)\]\.pShortDesc/g), (match, p1) => `${name}.inventory.equipment.piercings.cocks.get(${p1}).item.shortDesc`);
-    text = text.replace(combineStrRegex(name, /\.cocks\[([^\]]+)\]\.pLongDesc/g), (match, p1) => `${name}.inventory.equipment.piercings.cocks.get(${p1}).item.longDesc`);
+    text = text.replace(escRegex(`${name}.lipPierced`), `${name}.inventory.piercings.lip.isEquiped()`);
+    text = text.replace(escRegex(`${name}.lipPShort`), `${name}.inventory.piercings.lip.item.shortDesc`);
+    text = text.replace(escRegex(`${name}.lipPLong`), `${name}.inventory.piercings.lip.item.longDesc`);
+    text = text.replace(escRegex(`${name}.tonguePierced`), `${name}.inventory.piercings.tongue.isEquipped()`);
+    text = text.replace(escRegex(`${name}.tonguePShort`), `${name}.inventory.piercings.tongue.item.shortDesc`);
+    text = text.replace(escRegex(`${name}.tonguePLong`), `${name}.inventory.piercings.tongue.item.longDesc`);
+    text = text.replace(escRegex(`${name}.eyebrowPierced`), `${name}.inventory.piercings.eyebrow.isEquipped()`);
+    text = text.replace(escRegex(`${name}.eyebrowPShort`), `${name}.inventory.piercings.eyebrow.item.shortDesc`);
+    text = text.replace(escRegex(`${name}.eyebrowPLong`), `${name}.inventory.piercings.eyebrow.item.longDesc`);
+    text = text.replace(escRegex(`${name}.earsPierced`), `${name}.inventory.piercings.isEquipped()`);
+    text = text.replace(escRegex(`${name}.earsPShort`), `${name}.inventory.piercings.item.shortDesc`);
+    text = text.replace(escRegex(`${name}.earsPLong`), `${name}.inventory.piercings.item.longDesc`);
+    text = text.replace(escRegex(`${name}.nosePierced`), `${name}.inventory.piercings.isEquipped()`);
+    text = text.replace(escRegex(`${name}.nosePShort`), `${name}.inventory.piercings.item.shortDesc`);
+    text = text.replace(escRegex(`${name}.nosePLong`), `${name}.inventory.piercings.item.longDesc`);
+    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.labiaPierced/g), `${name}.inventory.piercings.labia.isEquipped()`);
+    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.labiaPShort/g), `${name}.inventory.piercings.labia.item.shortDesc`);
+    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.labiaPLong/g), `${name}.inventory.piercings.labia.item.longDesc`);
+    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.clitPierced/g), `${name}.inventory.piercings.clit.isEquipped()`);
+    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.clitPShort/g), `${name}.inventory.piercings.clit.item.shortDesc`);
+    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.clitPLong/g), `${name}.inventory.piercings.clit.item.longDesc`);
+    text = text.replace(combineStrRegex(name, /\.cocks\[([^\]]+)\]\.isPierced/g), (match, p1) => `${name}.inventory.piercings.cocks.get(${p1}).isEquipped()`);
+    text = text.replace(combineStrRegex(name, /\.cocks\[([^\]]+)\]\.pShortDesc/g), (match, p1) => `${name}.inventory.piercings.cocks.get(${p1}).item.shortDesc`);
+    text = text.replace(combineStrRegex(name, /\.cocks\[([^\]]+)\]\.pLongDesc/g), (match, p1) => `${name}.inventory.piercings.cocks.get(${p1}).item.longDesc`);
 
     text = text.replace(escRegex(`${name}.antennae`), `${name}.body.antennae.type`);
     text = text.replace(escRegex(`${name}.eyeType`), `${name}.body.eyes.type`);
@@ -1040,28 +1042,28 @@ function fixCreatureClass(text: string, name: string): string {
     text = funcReplacer(text, name + '.statusAffect(', ')', (match, type) => `${name}.effects.get(${type})`);
     text = funcReplacer(text, combineStrRegex(name, /\.statusAffectv([1-4])\(/), ')', (match, index, type) => `${name}.effects.get(${type}).value${index}`);
     // Unused - removeStatuses
-    text = text.replace(escRegex(`${name}.biggestTitSize()`), `${name}.body.chest.sort(BreastRow.Largest)[0].rating`);
+    text = text.replace(escRegex(`${name}.biggestTitSize()`), `${name}.body.chest.sort(BreastRow.Largest).get(0).rating`);
     text = funcReplacer(text, name + '.cockArea(', ')', (match, index) => `${name}.body.cocks.get(${index}).area`);
-    text = text.replace(escRegex(`${name}.biggestCockLength()`), `${name}.body.cocks.sort(Cock.Largest)[0].length`);
-    text = text.replace(escRegex(`${name}.biggestCockArea()`), `${name}.body.cocks.sort(Cock.Largest)[0].area`);
-    text = text.replace(escRegex(`${name}.biggestCockArea2()`), `${name}.body.cocks.sort(Cock.Largest)[1].area`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.longestCock()]`), `${name}.body.cocks.sort(Cock.Longest)[0]`);
-    text = text.replace(escRegex(`${name}.longestCock()`), `${name}.body.cocks.sort(Cock.Longest)[0]`);
-    text = text.replace(escRegex(`${name}.longestCockLength()`), `${name}.body.cocks.sort(Cock.Longest)[0].length`);
-    text = text.replace(escRegex(`${name}.longestHorseCockLength()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.HORSE)).sort(Cock.Longest)[0].length`);
+    text = text.replace(escRegex(`${name}.biggestCockLength()`), `${name}.body.cocks.sort(Cock.Largest).get(0).length`);
+    text = text.replace(escRegex(`${name}.biggestCockArea()`), `${name}.body.cocks.sort(Cock.Largest).get(0).area`);
+    text = text.replace(escRegex(`${name}.biggestCockArea2()`), `${name}.body.cocks.sort(Cock.Largest).get(1).area`);
+    text = text.replace(escRegex(`${name}.cocks[${name}.longestCock()]`), `${name}.body.cocks.sort(Cock.Longest).get(0)`);
+    text = text.replace(escRegex(`${name}.longestCock()`), `${name}.body.cocks.sort(Cock.Longest).get(0)`);
+    text = text.replace(escRegex(`${name}.longestCockLength()`), `${name}.body.cocks.sort(Cock.Longest).get(0).length`);
+    text = text.replace(escRegex(`${name}.longestHorseCockLength()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.HORSE)).sort(Cock.Longest).get(0).length`);
     // Unknown - twoDickRadarSpecial()
     text = text.replace(escRegex(`${name}.totalCockThickness()`), `${name}.body.cocks.reduce(Cock.TotalThickness, 0)`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.thickestCock()]`), `${name}.body.cocks.sort(Cock.Thickest)[0]`);
-    text = text.replace(escRegex(`${name}.thickestCock()`), `${name}.body.cocks.sort(Cock.Thickest)[0]`);
-    text = text.replace(escRegex(`${name}.thickestCockThickness()`), `${name}.body.cocks.sort(Cock.Thickest)[0].thickness`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.thinnestCockIndex()]`), `${name}.body.cocks.sort(Cock.Thinnest)[0]`);
-    text = text.replace(escRegex(`${name}.thinnestCockIndex()`), `${name}.body.cocks.sort(Cock.Thinnest)[0]`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.smallestCockIndex()]`), `${name}.body.cocks.sort(Cock.Smallest)[0]`);
-    text = text.replace(escRegex(`${name}.smallestCockIndex()`), `${name}.body.cocks.sort(Cock.Smallest)[0]`);
-    text = text.replace(escRegex(`${name}.smallestCockLength()`), `${name}.body.cocks.sort(Cock.Smallest)[0].length`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.shortestCockIndex()]`), `${name}.body.cocks.sort(Cock.Shortest)[0]`);
-    text = text.replace(escRegex(`${name}.shortestCockIndex()`), `${name}.body.cocks.sort(Cock.Shortest)[0]`);
-    text = text.replace(escRegex(`${name}.shortestCockLength()`), `${name}.body.cocks.sort(Cock.Shortest)[0].length`);
+    text = text.replace(escRegex(`${name}.cocks[${name}.thickestCock()]`), `${name}.body.cocks.sort(Cock.Thickest).get(0)`);
+    text = text.replace(escRegex(`${name}.thickestCock()`), `${name}.body.cocks.sort(Cock.Thickest).get(0)`);
+    text = text.replace(escRegex(`${name}.thickestCockThickness()`), `${name}.body.cocks.sort(Cock.Thickest).get(0).thickness`);
+    text = text.replace(escRegex(`${name}.cocks[${name}.thinnestCockIndex()]`), `${name}.body.cocks.sort(Cock.Thinnest).get(0)`);
+    text = text.replace(escRegex(`${name}.thinnestCockIndex()`), `${name}.body.cocks.sort(Cock.Thinnest).get(0)`);
+    text = text.replace(escRegex(`${name}.cocks[${name}.smallestCockIndex()]`), `${name}.body.cocks.sort(Cock.Smallest).get(0)`);
+    text = text.replace(escRegex(`${name}.smallestCockIndex()`), `${name}.body.cocks.sort(Cock.Smallest).get(0)`);
+    text = text.replace(escRegex(`${name}.smallestCockLength()`), `${name}.body.cocks.sort(Cock.Smallest).get(0).length`);
+    text = text.replace(escRegex(`${name}.cocks[${name}.shortestCockIndex()]`), `${name}.body.cocks.sort(Cock.Shortest).get(0)`);
+    text = text.replace(escRegex(`${name}.shortestCockIndex()`), `${name}.body.cocks.sort(Cock.Shortest).get(0)`);
+    text = text.replace(escRegex(`${name}.shortestCockLength()`), `${name}.body.cocks.sort(Cock.Shortest).get(0).length`);
     text = funcReplacer(text,
         combineStrRegex(name, /\.cockThatFits(2?)\(/), /\)(?:\s*([!><=]+)\s*([-\d]+))?/,
         (match, second, arg1, arg2, compOp, compVal) => {
@@ -1080,22 +1082,22 @@ function fixCreatureClass(text: string, name: string): string {
             str += '(' + arg1 + '))';
 
             if (second)
-                str += '[1]';
+                str += '.get(1)';
 
             return str;
         }
     );
-    text = text.replace(escRegex(`${name}.smallestCockArea()`), `${name}.body.cocks.sort(Cock.Smallest)[0].area`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.smallestCock()]`), `${name}.body.cocks.sort(Cock.Smallest)[0]`);
-    text = text.replace(escRegex(`${name}.smallestCock()`), `${name}.body.cocks.sort(Cock.Smallest)[0]`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.biggestCockIndex()]`), `${name}.body.cocks.sort(Cock.Largest)[0]`);
-    text = text.replace(escRegex(`${name}.biggestCockIndex()`), `${name}.body.cocks.sort(Cock.Largest)[0]`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.biggestCockIndex2()]`), `${name}.body.cocks.sort(Cock.Largest)[1]`);
-    text = text.replace(escRegex(`${name}.biggestCockIndex2()`), `${name}.body.cocks.sort(Cock.Largest)[1]`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.smallestCockIndex2()]`), `${name}.body.cocks.sort(Cock.Smallest)[1]`);
-    text = text.replace(escRegex(`${name}.smallestCockIndex2()`), `${name}.body.cocks.sort(Cock.Smallest)[1]`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.biggestCockIndex3()]`), `${name}.body.cocks.sort(Cock.Largest)[2]`);
-    text = text.replace(escRegex(`${name}.biggestCockIndex3()`), `${name}.body.cocks.sort(Cock.Largest)[2]`);
+    text = text.replace(escRegex(`${name}.smallestCockArea()`), `${name}.body.cocks.sort(Cock.Smallest).get(0).area`);
+    text = text.replace(escRegex(`${name}.cocks[${name}.smallestCock()]`), `${name}.body.cocks.sort(Cock.Smallest).get(0)`);
+    text = text.replace(escRegex(`${name}.smallestCock()`), `${name}.body.cocks.sort(Cock.Smallest).get(0)`);
+    text = text.replace(escRegex(`${name}.cocks[${name}.biggestCockIndex()]`), `${name}.body.cocks.sort(Cock.Largest).get(0)`);
+    text = text.replace(escRegex(`${name}.biggestCockIndex()`), `${name}.body.cocks.sort(Cock.Largest).get(0)`);
+    text = text.replace(escRegex(`${name}.cocks[${name}.biggestCockIndex2()]`), `${name}.body.cocks.sort(Cock.Largest).get(1)`);
+    text = text.replace(escRegex(`${name}.biggestCockIndex2()`), `${name}.body.cocks.sort(Cock.Largest).get(1)`);
+    text = text.replace(escRegex(`${name}.cocks[${name}.smallestCockIndex2()]`), `${name}.body.cocks.sort(Cock.Smallest).get(1)`);
+    text = text.replace(escRegex(`${name}.smallestCockIndex2()`), `${name}.body.cocks.sort(Cock.Smallest).get(1)`);
+    text = text.replace(escRegex(`${name}.cocks[${name}.biggestCockIndex3()]`), `${name}.body.cocks.sort(Cock.Largest).get(2)`);
+    text = text.replace(escRegex(`${name}.biggestCockIndex3()`), `${name}.body.cocks.sort(Cock.Largest).get(2)`);
     text = text.replace(escRegex(`${name}.cockDescript()`), `describeCock(${name}, ${name}.body.cocks.get(0))`);
     text = funcReplacer(text, name + '.cockDescript(', ')',
         (match, arg) =>
@@ -1123,7 +1125,7 @@ function fixCreatureClass(text: string, name: string): string {
     // OK - lactationSpeed()
     text = text.replace(escRegex(`${name}.dogScore()`), `dogRaceScore(${name})`);
     text = text.replace(escRegex(`${name}.foxScore()`), `foxRaceScore(${name})`);
-    text = text.replace(escRegex(`${name}.biggestLactation()`), `${name}.body.chest.sort(BreastRow.LactationMost)[0].lactationMultiplier`);
+    text = text.replace(escRegex(`${name}.biggestLactation()`), `${name}.body.chest.sort(BreastRow.LactationMost).get(0).lactationMultiplier`);
     // OK - milked()
     text = funcReplacer(text, name + '.boostLactation(', ')', (match, arg) => `boostLactation(${name}, ${arg})`);
     text = text.replace(escRegex(`${name}.averageLactation()`), `${name}.body.chest.reduce(BreastRow.AverageLactation, 0)`);
@@ -1140,6 +1142,7 @@ function fixCreatureClass(text: string, name: string): string {
     text = text.replace(escRegex(`${name}.horseCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.HORSE)).length`);
     text = text.replace(escRegex(`${name}.kangaCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.KANGAROO)).length`);
     text = text.replace(escRegex(`${name}.lizardCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.LIZARD)).length`);
+    text = text.replace(escRegex(`${name}.normalCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.HUMAN)).length`);
     text = text.replace(escRegex(`${name}.tentacleCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.TENTACLE)).length`);
     // Unused - findFirstCockType()
     // Unused - addHorseCock()
@@ -1242,9 +1245,9 @@ function fixCreatureClass(text: string, name: string): string {
     text = text.replace(escRegex(`${name}.bRows()`), `${name}.body.chest.length`);
     text = text.replace(escRegex(`${name}.totalBreasts()`), `${name}.body.chest.reduce(BreastRow.TotalBreasts, 0)`);
     text = text.replace(escRegex(`${name}.totalNipples()`), `${name}.body.chest.reduce(BreastRow.TotalNipples, 0)`);
-    text = text.replace(escRegex(`${name}.smallestTitSize()`), `${name}.body.chest.sort(BreastRow.Smallest)[0].rating`);
-    text = text.replace(escRegex(`${name}.smallestTitRow()`), `${name}.body.chest.sort(BreastRow.Smallest)[0]`);
-    text = text.replace(escRegex(`${name}.biggestTitRow()`), `${name}.body.chest.sort(BreastRow.Biggest)[0]`);
+    text = text.replace(escRegex(`${name}.smallestTitSize()`), `${name}.body.chest.sort(BreastRow.Smallest).get(0).rating`);
+    text = text.replace(escRegex(`${name}.smallestTitRow()`), `${name}.body.chest.sort(BreastRow.Smallest).get(0)`);
+    text = text.replace(escRegex(`${name}.biggestTitRow()`), `${name}.body.chest.sort(BreastRow.Biggest).get(0)`);
     text = text.replace(escRegex(`${name}.averageBreastSize()`), `${name}.body.chest.reduce(BreastRow.AverageSize, 0)`);
     text = text.replace(escRegex(`${name}.averageCockThickness()`), `${name}.body.cocks.reduce(Cock.AverageThickness, 0)`);
     text = text.replace(escRegex(`${name}.averageNippleLength()`), `${name}.body.chest.reduce(BreastRow.AverageNippleLength, 0)`);
@@ -1252,7 +1255,7 @@ function fixCreatureClass(text: string, name: string): string {
     text = text.replace(escRegex(`${name}.averageVaginalWetness()`), `${name}.body.vaginas.reduce(Vagina.AverageWetness, 0)`);
     text = text.replace(escRegex(`${name}.averageCockLength()`), `${name}.body.cock.reduce(Cock.AverageLength, 0)`);
     text = text.replace(escRegex(`${name}.canTitFuck()`), `${name}.body.chest.find(BreastRow.Fuckable)`);
-    text = text.replace(escRegex(`${name}.mostBreastsPerRow()`), `${name}.body.chest.sort(BreastRow.MostBreastsCount)[0].length`);
+    text = text.replace(escRegex(`${name}.mostBreastsPerRow()`), `${name}.body.chest.sort(BreastRow.BreastsPerRowMost).get(0).count`);
     text = text.replace(escRegex(`${name}.averageNipplesPerBreast()`), `${name}.body.chest.reduce(BreastRow.AverageNipplesPerBreast, 0)`);
     text = text.replace(escRegex(`${name}.allBreastsDescript()`), `describeAllBreasts(${name})`);
     text = text.replace(escRegex(`${name}.sMultiCockDesc()`), `describeOneOfYourCocks(${name})`);

@@ -17,7 +17,7 @@ right.style.color = "#f2f2f2";
 right.style.left = "50%";
 
 left.addEventListener('input', () => {
-    console.log(left.value);
+    // console.log(left.value);
     if (left.value)
         right.value = fixText(left.value);
 });

@@ -15,7 +15,7 @@ export function combineStrRegex(str: string, regex: RegExp): RegExp {
 /**
  * 0: total match
  * 1...n: each match
- * @param text 
+ * @param text
  */
 function getArgs(text: StringStream): string[] | undefined {
     const startPos = text.pos;
