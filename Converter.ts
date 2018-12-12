@@ -1,5 +1,24 @@
 import { funcReplacer, escRegex, trimLeft, combineStrRegex } from './Utils';
 
+type ReplaceFunc = (match: string, ...args: string[]) => string;
+
+function check(searchValue: string | RegExp, strOrFunc: string | ReplaceFunc) {
+    return (match: string, ...args: string[]) => {
+        if (match.split('\n').length > 1)
+            console.log(searchValue, match);
+
+        if (typeof strOrFunc === 'string')
+            return strOrFunc;
+        else if (typeof strOrFunc === 'function')
+            return strOrFunc(match, ...args);
+        return '';
+    };
+}
+
+function replace(text: string, searchValue: string | RegExp, replaceValue: string | ReplaceFunc): string {
+    return text.replace(searchValue, check(searchValue, replaceValue));
+}
+
 export function fixText(text: string): string {
     const lines = text.split('\n');
 
@@ -174,58 +193,57 @@ export function fixText(text: string): string {
         );
     }
 
-    text = text.replace('extends NPCAwareContent ', '');
-    text = text.replace('extends BaseContent ', '');
-    text = text.replace('TimeAwareInterface', 'ITimeAware');
+    text = replace(text, 'extends NPCAwareContent ', '');
+    text = replace(text, 'extends BaseContent ', '');
+    text = replace(text, 'TimeAwareInterface', 'ITimeAware');
 
-    text = text.replace(/:\s*Function/g, ': ClickFunction');
-    text = text.replace(/:\s*Boolean/g, ': boolean');
-    text = text.replace(/:\s*Number/g, ': number');
-    text = text.replace(/:\s*int/g, ': number');
-    text = text.replace(/:\s*String/g, ': string');
-    text = text.replace(/:\s*void/g, ': void');
-    text = text.replace(/null/g, 'undefined');
+    text = replace(text, /:\s*Function/g, ': ClickFunction');
+    text = replace(text, /:\s*Boolean/g, ': boolean');
+    text = replace(text, /:\s*Number/g, ': number');
+    text = replace(text, /:\s*int/g, ': number');
+    text = replace(text, /:\s*String/g, ': string');
+    text = replace(text, /:\s*void/g, ': void');
+    text = replace(text, /null/g, 'undefined');
 
     if (/flags\[kFLAGS\.([^\]]+)\]/g.test(text)) {
-        text = text.replace(/flags\[kFLAGS\.([^\]]+)\]/g, (match, p1) => {
+        text = replace(text, /flags\[kFLAGS\.([^\]]+)\]/g, (match, p1) => {
             flags.add(p1);
             return `${className}Flags.${p1}`;
         });
     }
 
     if (flags.size > 0) {
-        let flagText = `export const ${className}Flags = {\n`;
+        let flagText = `export const ${className}Flags = Flags.register("${className}", {\n`;
         for (const flag of flags.values()) {
             flagText += `${flag}: 0,\n`;
         }
-        flagText += '};\n';
-        flagText += `Flags.set(FlagType.${className}, ${className}Flags);\n`;
+        flagText += '});\n';
 
         text = flagText + text;
     }
     // flagText += 'const player = CharDict.player;';
 
     text = funcReplacer(text, 'rand(', ')', (match, arg) => `randInt(${arg})`);
-    text = text.replace(escRegex('camp.returnToCampUseOneHour'), 'passTime(1)');
-    text = text.replace(escRegex('camp.returnToCampUseTwoHours'), 'passTime(2)');
-    text = text.replace(escRegex('camp.returnToCampUseFourHours'), 'passTime(4)');
-    text = text.replace(escRegex('camp.returnToCampUseEightHours'), 'passTime(8)');
-    text = text.replace(escRegex('Appearance.'), '');
-    text = text.replace(/game\.(\w)/g, (match, p1) => p1);
-    text = text.replace(escRegex('kGAMECLASS.'), '');
-    text = text.replace(escRegex('CoC.'), '');
-    text = text.replace(escRegex('kFLAGS.'), `${className}Flags.`);
+    text = replace(text, escRegex('camp.returnToCampUseOneHour'), 'passTime(1)');
+    text = replace(text, escRegex('camp.returnToCampUseTwoHours'), 'passTime(2)');
+    text = replace(text, escRegex('camp.returnToCampUseFourHours'), 'passTime(4)');
+    text = replace(text, escRegex('camp.returnToCampUseEightHours'), 'passTime(8)');
+    text = replace(text, escRegex('Appearance.'), '');
+    text = replace(text, /game\.(\w)/g, (match, p1) => p1);
+    text = replace(text, escRegex('kGAMECLASS.'), '');
+    text = replace(text, escRegex('CoC.'), '');
+    text = replace(text, escRegex('kFLAGS.'), `${className}Flags.`);
     // Unused - whitney
     // Manual - monk
     // Manual - sand
     // Manual - giacomo
 
-    text = text.replace(escRegex('model.time.hours'), 'Time.hour');
-    text = text.replace(escRegex('model.time.days'), 'Time.day');
-    text = text.replace(escRegex('model.time.day'), 'Time.day');
+    text = replace(text, escRegex('model.time.hours'), 'Time.hour');
+    text = replace(text, escRegex('model.time.days'), 'Time.day');
+    text = replace(text, escRegex('model.time.day'), 'Time.day');
 
-    text = text.replace(escRegex('gameOver()'), 'return gameOverMenu()');
-    text = text.replace(escRegex('cockNoun('), 'nounCock(');
+    text = replace(text, escRegex('gameOver()'), 'return gameOverMenu()');
+    text = replace(text, escRegex('cockNoun('), 'nounCock(');
 
     // Classes
     text = fixUtils(text);
@@ -243,48 +261,51 @@ export function fixText(text: string): string {
     text = fixBaseContent(text, className);
 
     // Enums
-    text = text.replace(escRegex('StatusAffects.'), 'StatusEffectType.');
-    text = text.replace(escRegex('PerkLib.'), 'PerkType.');
-    text = text.replace(escRegex('CockTypesEnum.'), 'CockType.');
-    text = text.replace(escRegex('PregnancyStore.PREGNANCY_'), 'PregnancyType.');
-    text = text.replace(escRegex('PregnancyStore.INCUBATION_'), 'IncubationTime.');
-    text = text.replace(escRegex('GENDER_'), 'Gender.');
-    text = text.replace(escRegex('SKIN_TYPE_'), 'SkinType.');
-    text = text.replace(escRegex('HAIR_'), 'HairType.');
-    text = text.replace(escRegex('FACE_'), 'FaceType.');
-    text = text.replace(escRegex('TONGUE_'), 'TongueType.');
-    text = text.replace(escRegex('TONUGE_'), 'TongueType.');
-    text = text.replace(escRegex('EYES_'), 'EyeType.');
-    text = text.replace(escRegex('EARS_'), 'EarType.');
-    text = text.replace(escRegex('HORNS_'), 'HornType.');
-    text = text.replace(escRegex('ANTENNAE_'), 'AntennaeType.');
-    text = text.replace(escRegex('ARM_TYPE_'), 'ArmType.');
-    text = text.replace(escRegex('TAIL_TYPE_'), 'TailType.');
-    text = text.replace(escRegex('BREAST_CUP_'), 'BreastCup.');
-    text = text.replace(escRegex('WING_TYPE_'), 'WingType.');
-    text = text.replace(escRegex('LOWER_BODY_TYPE_'), 'LegType.');
-    text = text.replace(escRegex('PIERCING_TYPE_'), 'PiercingType.');
-    text = text.replace(escRegex('VAGINA_TYPE_'), 'VaginaType.');
-    text = text.replace(escRegex('VAGINA_WETNESS_'), 'VaginaWetness.');
-    text = text.replace(escRegex('VAGINA_LOOSENESS_'), 'VaginaLooseness.');
-    text = text.replace(escRegex('ANAL_WETNESS_'), 'ButtWetness.');
-    text = text.replace(escRegex('ANAL_LOOSENESS_'), 'ButtLooseness.');
-    text = text.replace(escRegex('HIP_RATING_'), 'HipRating.');
-    text = text.replace(escRegex('BUTT_RATING_'), 'ButtRating.');
+    text = replace(text, escRegex('StatusAffects.'), 'EffectType.');
+    text = replace(text, escRegex('PerkLib.'), 'EffectType.');
+    text = replace(text, escRegex('CockTypesEnum.'), 'CockType.');
+    text = replace(text, escRegex('PregnancyStore.PREGNANCY_'), 'PregnancyType.');
+    text = replace(text, escRegex('PregnancyStore.INCUBATION_'), 'IncubationTime.');
+    text = replace(text, escRegex('GENDER_'), 'Gender.');
+    text = replace(text, escRegex('SKIN_TYPE_'), 'SkinType.');
+    text = replace(text, escRegex('HAIR_'), 'HairType.');
+    text = replace(text, escRegex('FACE_'), 'FaceType.');
+    text = replace(text, escRegex('TONGUE_'), 'TongueType.');
+    text = replace(text, escRegex('TONUGE_'), 'TongueType.');
+    text = replace(text, escRegex('EYES_'), 'EyeType.');
+    text = replace(text, escRegex('EARS_'), 'EarType.');
+    text = replace(text, escRegex('HORNS_'), 'HornType.');
+    text = replace(text, escRegex('ANTENNAE_'), 'AntennaeType.');
+    text = replace(text, escRegex('ARM_TYPE_'), 'ArmType.');
+    text = replace(text, escRegex('TAIL_TYPE_'), 'TailType.');
+    text = replace(text, escRegex('BREAST_CUP_'), 'BreastCup.');
+    text = replace(text, escRegex('WING_TYPE_'), 'WingType.');
+    text = replace(text, escRegex('LOWER_BODY_TYPE_'), 'LegType.');
+    text = replace(text, escRegex('PIERCING_TYPE_'), 'PiercingType.');
+    text = replace(text, escRegex('VAGINA_TYPE_'), 'VaginaType.');
+    text = replace(text, escRegex('VAGINA_WETNESS_'), 'VaginaWetness.');
+    text = replace(text, escRegex('VAGINA_LOOSENESS_'), 'VaginaLooseness.');
+    text = replace(text, escRegex('ANAL_WETNESS_'), 'ButtWetness.');
+    text = replace(text, escRegex('ANAL_LOOSENESS_'), 'ButtLooseness.');
+    text = replace(text, escRegex('HIP_RATING_'), 'HipRating.');
+    text = replace(text, escRegex('BUTT_RATING_'), 'ButtRating.');
 
     // Inventory
     text = fixInventory(text);
 
     // Special post cases
-    text = text.replace(/player\.stats\.lus=/g, (match, p1) => `player.stats.lustNoResist${p1}`);
-    text = text.replace(/player\.stats\.lus([^t])/g, (match, p1) => `player.stats.lust${p1}`);
-    text = text.replace(/player\.stats\.sen([^s])/g, (match, p1) => `player.stats.sens${p1}`);
-    text = text.replace(escRegex('player.butt'), 'player.body.butt');
-    text = text.replace(escRegex('clearOutput()'), 'CView.clear()');
-    text = text.replace(escRegex('export function timeChange'), 'public timeChange');
-    text = text.replace(escRegex('export function timeChangeLarge'), 'public timeChangeLarge');
+    text = replace(text, /player\.stats\.lus=/g, (match, p1) => `player.stats.lustNoResist${p1}`);
+    text = replace(text, /player\.stats\.lus([^t])/g, (match, p1) => `player.stats.lust${p1}`);
+    text = replace(text, /player\.stats\.sen([^s])/g, (match, p1) => `player.stats.sens${p1}`);
+    text = replace(text, escRegex('player.butt'), 'player.body.butt');
+    text = replace(text, escRegex('clearOutput()'), 'CView.clear()');
+    text = replace(text, escRegex('export function timeChange'), 'public timeChange');
+    text = replace(text, escRegex('export function timeChangeLarge'), 'public timeChangeLarge');
     text = funcReplacer(text, /player\.body\.\w+\.get\(([^\d])/, ')', (match, p1, p2) => p1 + (p2 !== undefined ? p2 : ''));
-    text = text.replace(/player\.body\.tail\.type\s*>\s*TailType.NONE/g, 'player.body.tails.length > 0');
+    text = replace(text, /player\.body\.tail\.type\s*>\s*TailType.NONE/g, 'player.body.tails.length > 0');
+
+    text = replace(text, escRegex('player.effects.getByName(EffectType.Exgartuan).value1'), 'ExgartuanFlags.LOCATION');
+    text = replace(text, escRegex('player.effects.getByName(EffectType.Exgartuan).value2'), 'ExgartuanFlags.SLEEP_COUNTER');
 
     return text;
 }
@@ -296,15 +317,15 @@ function fixInventory(text: string): string {
             return `return player.inventory.items.createAdd(player, ${item}, ${next})`;
         }
     );
-    text = text.replace(escRegex('inventory.hasItemInStorage'), 'player.inventory.items.has');
-    text = text.replace(escRegex('inventory.consumeItemInStorage'), 'player.inventory.items.consumeItem');
+    text = replace(text, escRegex('inventory.hasItemInStorage'), 'player.inventory.items.has');
+    text = replace(text, escRegex('inventory.consumeItemInStorage'), 'player.inventory.items.consumeItem');
     return text;
 }
 
 function fixUtils(text: string): string {
-    text = text.replace(escRegex('num2Text'), 'numToCardinalText');
-    text = text.replace(escRegex('Num2Text'), 'numToCardinalCapText');
-    text = text.replace(escRegex('num2Text2'), 'numToOrdinalText');
+    text = replace(text, escRegex('num2Text'), 'numToCardinalText');
+    text = replace(text, escRegex('Num2Text'), 'numToCardinalCapText');
+    text = replace(text, escRegex('num2Text2'), 'numToOrdinalText');
     return text;
 }
 
@@ -499,30 +520,30 @@ function fixItems(text: string): string {
 
     for (const type of [weapons, armors, useables, consumables])
         for (const item of type)
-            text = text.replace(escRegex(item[0]), item[1]);
+            text = replace(text, escRegex(item[0]), item[1]);
 
     return text;
 }
 
 function fixBaseContent(text: string, className?: string): string {
-    text = text.replace(/getGame\(\)\.?/g, '');
+    text = replace(text, /getGame\(\)\.?/g, '');
     // Unknown - cheatTime
     // OK - isHalloween
     // OK - isValentine
     // OK - isHolidays
     // OK - isThanksgiving
-    text = text.replace(escRegex('showStats'), 'MainScreen.stats.show()');
-    text = text.replace(escRegex('statScreenRefresh();'), '');
-    text = text.replace(escRegex('cleanupAfterCombat()'), 'return { next: passTime(1) }');
-    text = text.replace(escRegex('cleanupAfterCombat'), 'passTime(1)');
+    text = replace(text, escRegex('showStats'), 'MainScreen.stats.show()');
+    text = replace(text, escRegex('statScreenRefresh();'), '');
+    text = replace(text, escRegex('cleanupAfterCombat()'), 'return { next: passTime(1) }');
+    text = replace(text, escRegex('cleanupAfterCombat'), 'passTime(1)');
     // Manual - combatRoundOver
     // Manual - enemyAI
     if (className) text = funcReplacer(text, 'spriteSelect(', ')', (match, ...sprite) => `CView.sprite(SpriteName.${className}); // ${sprite}`);
-    text = text.replace(escRegex('hideStats()'), '');
-    text = text.replace(escRegex('hideUpDown()'), '');
-    text = text.replace(escRegex('createCallBackFunction'), 'choiceWrap');
-    text = text.replace(escRegex('createCallBackFunction2'), 'choiceWrap');
-    text = text.replace(escRegex('startCombat('), 'return CombatManager.beginBattle(player, ');
+    text = replace(text, escRegex('hideStats()'), '');
+    text = replace(text, escRegex('hideUpDown()'), '');
+    text = replace(text, escRegex('createCallBackFunction'), 'choiceWrap');
+    text = replace(text, escRegex('createCallBackFunction2'), 'choiceWrap');
+    text = replace(text, escRegex('startCombat('), 'return CombatManager.beginBattle(player, ');
     // Manual - startCombatImmediate
     // Unused - rawOutputText
     text = funcReplacer(text, 'outputText(', ');',
@@ -546,8 +567,8 @@ function fixBaseContent(text: string, className?: string): string {
 
     // Special - clearOutput
     text = funcReplacer(text, 'doNext(', ');', (match, func) => `return { next: ${func} };`);
-    text = text.replace(escRegex('menu();'), '');
-    text = text.replace(escRegex('hideMenus()'), 'MainScreen.topButtons.hide()');
+    text = replace(text, escRegex('menu();'), '');
+    text = replace(text, escRegex('hideMenus()'), 'MainScreen.topButtons.hide()');
     text = funcReplacer(text,
         /(?:choices|simpleChoices)\(/, ')',
         (match, ...choices) =>
@@ -561,43 +582,43 @@ function fixBaseContent(text: string, className?: string): string {
     text = funcReplacer(text, 'doYesNo(', ');', (match, choice1, choice2) => `return { yes: ${choice1}, no: ${choice2} };`);
     text = funcReplacer(text, 'addButton(', ')', (match, index, choiceText, choiceFunc, ...args) => `choices[${index}] = [${choiceText}, ${args ? [choiceFunc].concat(args).join(', ') : choiceFunc}]`);
     // Unused - hasButton
-    text = text.replace(escRegex('sackDescript()'), 'describeSack(player)');
+    text = replace(text, escRegex('sackDescript()'), 'describeSack(player)');
     // Manual - cockClit
     // Unused - sheathDesc
-    text = text.replace(escRegex('chestDesc()'), 'describeChest(player)');
-    text = text.replace(escRegex('allChestDesc()'), 'describeEntireChest(player)');
-    text = text.replace(escRegex('allBreastsDescript()'), 'describeAllBreasts(player)');
-    text = text.replace(escRegex('sMultiCockDesc()'), 'describeOneOfYourCocks(player)');
-    text = text.replace(escRegex('SMultiCockDesc()'), 'describeOneOfYourCocks(player, true)');
-    text = text.replace(escRegex('oMultiCockDesc()'), 'describeEachOfYourCocks(player)');
-    text = text.replace(escRegex('OMultiCockDesc()'), 'describeEachOfYourCocks(player, true)');
-    text = text.replace(escRegex('tongueDescript()'), 'describeTongue(player)');
-    text = text.replace(escRegex('ballsDescriptLight()'), 'describeBalls(true, true, player)');
-    text = text.replace(escRegex('ballsDescriptLight(true)'), 'describeBalls(true, true, player)');
-    text = text.replace(escRegex('ballsDescriptLight(false)'), 'describeBalls(false, true, player)');
-    text = text.replace(escRegex('ballDescript()'), 'describeBalls(false, false, player)');
-    text = text.replace(escRegex('ballsDescript()'), 'describeBalls(false, true, player, true)');
-    text = text.replace(escRegex('simpleBallsDescript()'), 'describeBalls(false, true, player)');
-    text = text.replace(escRegex('assholeDescript()'), 'describeButthole(player.body.butt)');
-    text = text.replace(escRegex('eAssholeDescript()'), 'describeButthole(monster.body.butt)');
-    text = text.replace(escRegex('hipDescript()'), 'describeHips(player)');
-    text = text.replace(escRegex('assDescript()'), 'describeButt(player)');
-    text = text.replace(escRegex('buttDescript()'), 'describeButt(player)');
-    text = text.replace(escRegex('assholeOrPussy()'), 'assholeOrPussy(player)');
+    text = replace(text, escRegex('chestDesc()'), 'describeChest(player)');
+    text = replace(text, escRegex('allChestDesc()'), 'describeEntireChest(player)');
+    text = replace(text, escRegex('allBreastsDescript()'), 'describeAllBreasts(player)');
+    text = replace(text, escRegex('sMultiCockDesc()'), 'describeOneOfYourCocks(player)');
+    text = replace(text, escRegex('SMultiCockDesc()'), 'describeOneOfYourCocks(player, true)');
+    text = replace(text, escRegex('oMultiCockDesc()'), 'describeEachOfYourCocks(player)');
+    text = replace(text, escRegex('OMultiCockDesc()'), 'describeEachOfYourCocks(player, true)');
+    text = replace(text, escRegex('tongueDescript()'), 'describeTongue(player)');
+    text = replace(text, escRegex('ballsDescriptLight()'), 'describeBalls(true, true, player)');
+    text = replace(text, escRegex('ballsDescriptLight(true)'), 'describeBalls(true, true, player)');
+    text = replace(text, escRegex('ballsDescriptLight(false)'), 'describeBalls(false, true, player)');
+    text = replace(text, escRegex('ballDescript()'), 'describeBalls(false, false, player)');
+    text = replace(text, escRegex('ballsDescript()'), 'describeBalls(false, true, player, true)');
+    text = replace(text, escRegex('simpleBallsDescript()'), 'describeBalls(false, true, player)');
+    text = replace(text, escRegex('assholeDescript()'), 'describeButthole(player.body.butt)');
+    text = replace(text, escRegex('eAssholeDescript()'), 'describeButthole(monster.body.butt)');
+    text = replace(text, escRegex('hipDescript()'), 'describeHips(player)');
+    text = replace(text, escRegex('assDescript()'), 'describeButt(player)');
+    text = replace(text, escRegex('buttDescript()'), 'describeButt(player)');
+    text = replace(text, escRegex('assholeOrPussy()'), 'assholeOrPussy(player)');
     text = funcReplacer(text, 'nippleDescript(', ')', (match, index) => `describeNipple(player, player.body.chest.get(${index}))`);
-    text = text.replace(escRegex('cockDescript()'), 'describeCock(player, player.body.cocks.get(0))');
+    text = replace(text, escRegex('cockDescript()'), 'describeCock(player, player.body.cocks.get(0))');
     text = funcReplacer(text, 'cockDescript(', ')', (match, index) => `describeCock(player, player.body.cocks.get(${index}))`);
-    text = text.replace(escRegex('multiCockDescript()'), 'describeCocks(player)');
-    text = text.replace(escRegex('multiCockDescriptLight()'), 'describeCocksLight(player)');
+    text = replace(text, escRegex('multiCockDescript()'), 'describeCocks(player)');
+    text = replace(text, escRegex('multiCockDescriptLight()'), 'describeCocksLight(player)');
     text = funcReplacer(text, 'breastDescript(', ')', (match, index) => `describeBreastRow(player.body.chest.get(${index}))`);
     text = funcReplacer(text, 'breastSize(', ')', (match, size) => `describeBreastSize(${size})`);
-    text = text.replace(escRegex('biggestBreastSizeDescript()'), 'describeBiggestBreastRow(player)');
-    text = text.replace(escRegex('hairDescript()'), 'describeHair(player)');
-    text = text.replace(escRegex('hairOrFur()'), 'hairOrFur(player)');
-    text = text.replace(escRegex('clitDescript()'), 'describeClit(player)');
-    text = text.replace(escRegex('vaginaDescript()'), 'describeVagina(player, player.body.vaginas.get(0))');
+    text = replace(text, escRegex('biggestBreastSizeDescript()'), 'describeBiggestBreastRow(player)');
+    text = replace(text, escRegex('hairDescript()'), 'describeHair(player)');
+    text = replace(text, escRegex('hairOrFur()'), 'hairOrFur(player)');
+    text = replace(text, escRegex('clitDescript()'), 'describeClit(player)');
+    text = replace(text, escRegex('vaginaDescript()'), 'describeVagina(player, player.body.vaginas.get(0))');
     text = funcReplacer(text, 'vaginaDescript(', ')', (match, index) => `describeVagina(player, player.body.vaginas.get(${index}))`);
-    text = text.replace(escRegex('allVaginaDescript()'), 'describeEveryVagina(player)');
+    text = replace(text, escRegex('allVaginaDescript()'), 'describeAllVagina(player)');
     text = funcReplacer(text, 'dynStats(', ');',
         (match, ...stats) => {
             let op: string;
@@ -622,7 +643,7 @@ function fixBaseContent(text: string, className?: string): string {
             }, '');
         }
     );
-    text = text.replace(escRegex('silly()'), 'Settings.silly()');
+    text = replace(text, escRegex('silly()'), 'Settings.silly()');
     text = funcReplacer(text, 'HPChange(', ')',
         (match, amt, display) =>
             display === 'true' || display !== 'false' ?
@@ -635,60 +656,60 @@ function fixBaseContent(text: string, className?: string): string {
                 (type === '2' ? `player.stats.fatiguePhysical(${amt})` :
                     `player.stats.fatigue += ${amt} `)
     );
-    text = text.replace(escRegex('playerMenu'), 'playerMenu');
-    text = text.replace(escRegex('showStatDown'), '');
-    text = text.replace(escRegex('showStatUp'), '');
+    text = replace(text, escRegex('playerMenu'), 'playerMenu');
+    text = replace(text, escRegex('showStatDown'), '');
+    text = replace(text, escRegex('showStatUp'), '');
     return text;
 }
 
 function fixBreastRowClass(text: string): string {
-    text = text.replace(/breastRows\[([^\]]+)\]\.nipplesPerBreast/g, (match, index) => `breastRows.get(${index}).nipples.count`);
-    text = text.replace(/breastRows\[([^\]]+)\]\.fuckable/g, (match, index) => `breastRows.get(${index}).nipples.fuckable`);
-    text = text.replace(/breastRows\[([^\]]+)\]\.breasts/g, (match, index) => `breastRows.get(${index}).count`);
-    text = text.replace(/breastRows\[([^\]]+)\]\.breastRating/g, (match, index) => `breastRows.get(${index}).rating`);
-    text = text.replace(/breastRows\[([^\]]+)\]\.lactationMultiplier/g, (match, index) => `breastRows.get(${index}).lactationMultiplier`);
-    text = text.replace(/breastRows\[([^\]]+)\]\.milkFullness/g, (match, index) => `breastRows.get(${index}).milkFullness`);
-    text = text.replace(/breastRows\[([^\]]+)\]\.fullness/g, (match, index) => `breastRows.get(${index}).fullness`);
+    text = replace(text, /breastRows\[([^\]]+)\]\.nipplesPerBreast/g, (match, index) => `breastRows.get(${index}).nipples.count`);
+    text = replace(text, /breastRows\[([^\]]+)\]\.fuckable/g, (match, index) => `breastRows.get(${index}).nipples.fuckable`);
+    text = replace(text, /breastRows\[([^\]]+)\]\.breasts/g, (match, index) => `breastRows.get(${index}).count`);
+    text = replace(text, /breastRows\[([^\]]+)\]\.breastRating/g, (match, index) => `breastRows.get(${index}).rating`);
+    text = replace(text, /breastRows\[([^\]]+)\]\.lactationMultiplier/g, (match, index) => `breastRows.get(${index}).lactationMultiplier`);
+    text = replace(text, /breastRows\[([^\]]+)\]\.milkFullness/g, (match, index) => `breastRows.get(${index}).milkFullness`);
+    text = replace(text, /breastRows\[([^\]]+)\]\.fullness/g, (match, index) => `breastRows.get(${index}).fullness`);
     return text;
 }
 
 function fixAssClass(text: string): string {
-    text = text.replace(escRegex('ass.analWetness'), `ass.wetness`);
-    text = text.replace(escRegex('ass.analLooseness'), `ass.looseness`);
+    text = replace(text, escRegex('ass.analWetness'), `ass.wetness`);
+    text = replace(text, escRegex('ass.analLooseness'), `ass.looseness`);
     return text;
 }
 
 function fixVaginaClass(text: string): string {
-    text = text.replace(/vaginas\[([^\]]+)\]\.vaginalWetness/g, (match, index) => `vaginas.get(${index}).wetness`);
-    text = text.replace(/vaginas\[([^\]]+)\]\.vaginalLooseness/g, (match, index) => `vaginas.get(${index}).looseness`);
-    text = text.replace(/vaginas\[([^\]]+)\]\.virgin/g, (match, index) => `vaginas.get(${index}).virgin`);
+    text = replace(text, /vaginas\[([^\]]+)\]\.vaginalWetness/g, (match, index) => `vaginas.get(${index}).wetness`);
+    text = replace(text, /vaginas\[([^\]]+)\]\.vaginalLooseness/g, (match, index) => `vaginas.get(${index}).looseness`);
+    text = replace(text, /vaginas\[([^\]]+)\]\.virgin/g, (match, index) => `vaginas.get(${index}).virgin`);
     return text;
 }
 
 function fixCockClass(text: string): string {
-    text = text.replace(/cocks\[([^\]]+)\]\.cockLength/g, (match, index) => `cocks.get(${index}).length`);
-    text = text.replace(/cocks\[([^\]]+)\]\.cockThickness/g, (match, index) => `cocks.get(${index}).thickness`);
-    text = text.replace(/cocks\[([^\]]+)\]\.cockType/g, (match, index) => `cocks.get(${index}).type`);
-    text = text.replace(/cocks\[([^\]]+)\]\.knotMultiplier/g, (match, index) => `cocks.get(${index}).knotMultiplier`);
+    text = replace(text, /cocks\[([^\]]+)\]\.cockLength/g, (match, index) => `cocks.get(${index}).length`);
+    text = replace(text, /cocks\[([^\]]+)\]\.cockThickness/g, (match, index) => `cocks.get(${index}).thickness`);
+    text = replace(text, /cocks\[([^\]]+)\]\.cockType/g, (match, index) => `cocks.get(${index}).type`);
+    text = replace(text, /cocks\[([^\]]+)\]\.knotMultiplier/g, (match, index) => `cocks.get(${index}).knotMultiplier`);
     return text;
 }
 
 function fixMonsterClass(text: string): string {
-    text = text.replace(escRegex('monster.bonusHP'), 'monster.stats.bonusHP');
-    text = text.replace(escRegex('this.bonusHP'), 'this.baseStats.bonusHP');
-    text = text.replace(escRegex('monster.long'), 'monster.desc.long');
-    text = text.replace(escRegex('monster.plural'), 'monster.desc.plural');
-    text = text.replace(escRegex('monster.lustVuln'), 'monster.stats.lustVuln');
-    text = text.replace(/monster\.[pP]rnoun1/g, 'monster.desc.subjectivePronoun');
-    text = text.replace(/monster\.[pP]rnoun2/g, 'monster.desc.objectivePronoun');
-    text = text.replace(/monster\.[pP]rnoun3/g, 'monster.desc.possessivePronoun');
-    text = text.replace(escRegex('monster.drop'), 'monster.combat.rewards.drop');
-    text = text.replace(escRegex('monster.eMaxHP'), 'monster.desc.long');
-    text = text.replace(escRegex('monster.addHP'), 'monster.combat.gainHP');
-    text = text.replace(escRegex('monster.HPRatio'), 'monster.combat.HPRatio');
-    text = text.replace(escRegex('monster.eBaseDamage'), 'monster.combat.weaponAttack');
+    text = replace(text, escRegex('monster.bonusHP'), 'monster.stats.bonusHP');
+    text = replace(text, escRegex('this.bonusHP'), 'this.baseStats.bonusHP');
+    text = replace(text, escRegex('monster.long'), 'monster.desc.long');
+    text = replace(text, escRegex('monster.plural'), 'monster.desc.plural');
+    text = replace(text, escRegex('monster.lustVuln'), 'monster.stats.lustVuln');
+    text = replace(text, /monster\.[pP]rnoun1/g, 'monster.desc.subjectivePronoun');
+    text = replace(text, /monster\.[pP]rnoun2/g, 'monster.desc.objectivePronoun');
+    text = replace(text, /monster\.[pP]rnoun3/g, 'monster.desc.possessivePronoun');
+    text = replace(text, escRegex('monster.drop'), 'monster.combat.rewards.drop');
+    text = replace(text, escRegex('monster.eMaxHP'), 'monster.desc.long');
+    text = replace(text, escRegex('monster.addHP'), 'monster.combat.gainHP');
+    text = replace(text, escRegex('monster.HPRatio'), 'monster.combat.HPRatio');
+    text = replace(text, escRegex('monster.eBaseDamage'), 'monster.combat.weaponAttack');
     // Unused - calcDamage
-    text = text.replace(escRegex('monster.eBaseDamage'), 'monster.combat.weaponAttack');
+    text = replace(text, escRegex('monster.eBaseDamage'), 'monster.combat.weaponAttack');
     // Manual - eOneAttack
     // Manual - eAttack
     // Manual - outputAttack
@@ -721,7 +742,7 @@ function fixMonsterClass(text: string): string {
             this.stats.base.cor.value = ${cor};`
     );
     text = funcReplacer(text, 'createBreastRow(', ')', (match, ...args) => `this.body.chest.add(new BreastRow(${args.join(', ')}))`);
-    text = text.replace(escRegex('createBreastRow()'), 'this.body.chest.add(new BreastRow())');
+    text = replace(text, escRegex('createBreastRow()'), 'this.body.chest.add(new BreastRow())');
 
     return text;
 }
@@ -729,67 +750,67 @@ function fixMonsterClass(text: string): string {
 function fixPlayerClass(text: string): string {
     // Manual - slotName
     // Manual - autoSave
-    text = text.replace(escRegex('player.lustVuln'), 'player.stats.lustVuln');
-    text = text.replace(escRegex('player.teaseLevel'), 'player.stats.teaseLevel');
-    text = text.replace(escRegex('player.teaseXP'), 'player.stats.teaseXP');
-    text = text.replace(escRegex('player.perkPoints'), 'player.stats.perkPoints');
-    text = text.replace(escRegex('player.explored'), 'ExplorationFlags.BEYOND_CAMP');
-    text = text.replace(escRegex('player.exploredForest'), 'ExplorationFlags.FOREST');
-    text = text.replace(escRegex('player.exploredDesert'), 'ExplorationFlags.DESERT');
-    text = text.replace(escRegex('player.exploredMountain'), 'ExplorationFlags.MOUNTAIN');
-    text = text.replace(escRegex('player.exploredLake'), 'ExplorationFlags.LAKE');
+    text = replace(text, escRegex('player.lustVuln'), 'player.stats.lustVuln');
+    text = replace(text, escRegex('player.teaseLevel'), 'player.stats.teaseLevel');
+    text = replace(text, escRegex('player.teaseXP'), 'player.stats.teaseXP');
+    text = replace(text, escRegex('player.perkPoints'), 'player.stats.perkPoints');
+    text = replace(text, escRegex('player.explored'), 'ExplorationFlags.BEYOND_CAMP');
+    text = replace(text, escRegex('player.exploredForest'), 'ExplorationFlags.FOREST');
+    text = replace(text, escRegex('player.exploredDesert'), 'ExplorationFlags.DESERT');
+    text = replace(text, escRegex('player.exploredMountain'), 'ExplorationFlags.MOUNTAIN');
+    text = replace(text, escRegex('player.exploredLake'), 'ExplorationFlags.LAKE');
     // Unused - pregnancyUpdate
     // Manual - itemSlot[1-5]
-    text = text.replace(escRegex('player.modArmorName'), 'player.inventory.modifiedArmorDesc');
+    text = replace(text, escRegex('player.modArmorName'), 'player.inventory.modifiedArmorDesc');
     // Unused - armorBaseDef
     // Unused - weaponBaseAttack
-    text = text.replace(escRegex('player.armor'), 'player.inventory.armor');
+    text = replace(text, escRegex('player.armor'), 'player.inventory.armor');
     text = funcReplacer(text, 'player.setArmor(', ')', (match, armor) => `player.inventory.equippedArmorSlot.equip(${armor})`);
     // Unused - setArmorHiddenField
-    text = text.replace(escRegex('player.weapon'), 'player.inventory.weapon');
+    text = replace(text, escRegex('player.weapon'), 'player.inventory.weapon');
     text = funcReplacer(text, 'player.setWeapon(', ')', (match, weapon) => `player.inventory.equippedWeaponSlot.equip(${weapon})`);
     // Unused - setWeaponHiddenField
     // Unused - reduceDamage
     // Manual - takeDamage
     // Unused - speedDodge
-    text = text.replace(escRegex('player.bodyType()'), 'describeBody(player)');
-    text = text.replace(escRegex('player.race()'), 'describeRace(player)');
-    text = text.replace(escRegex('player.demonScore()'), 'demonRaceScore(player)');
-    text = text.replace(escRegex('player.humanScore()'), 'humanRaceScore(player)');
-    text = text.replace(escRegex('player.minoScore()'), 'minotaurRaceScore(player)');
+    text = replace(text, escRegex('player.bodyType()'), 'describeBody(player)');
+    text = replace(text, escRegex('player.race()'), 'describeRace(player)');
+    text = replace(text, escRegex('player.demonScore()'), 'demonRaceScore(player)');
+    text = replace(text, escRegex('player.humanScore()'), 'humanRaceScore(player)');
+    text = replace(text, escRegex('player.minoScore()'), 'minotaurRaceScore(player)');
     // Unused - minotaurScore
-    text = text.replace(escRegex('player.cowScore()'), 'cowRaceScore(player)');
-    text = text.replace(escRegex('player.sandTrapScore()'), 'sandTrapRaceScore(player)');
-    text = text.replace(escRegex('player.beeScore()'), 'beeRaceScore(player)');
-    text = text.replace(escRegex('player.ferretScore()'), 'ferretRaceScore(player)');
-    text = text.replace(escRegex('player.mouseScore()'), 'mouseRaceScore(player)');
-    text = text.replace(escRegex('player.raccoonScore()'), 'raccoonRaceScore(player)');
-    text = text.replace(escRegex('player.catScore()'), 'catRaceScore(player)');
-    text = text.replace(escRegex('player.lizardScore()'), 'lizardRaceScore(player)');
-    text = text.replace(escRegex('player.spiderScore()'), 'spiderRaceScore(player)');
-    text = text.replace(escRegex('player.horseScore()'), 'horseRaceScore(player)');
-    text = text.replace(escRegex('player.kitsuneScore()'), 'kitsuneRaceScore(player)');
-    text = text.replace(escRegex('player.dragonScore()'), 'dragonRaceScore(player)');
-    text = text.replace(escRegex('player.goblinScore()'), 'goblinRaceScore(player)');
-    text = text.replace(escRegex('player.gooScore()'), 'gooRaceScore(player)');
-    text = text.replace(escRegex('player.nagaScore()'), 'nagaRaceScore(player)');
-    text = text.replace(escRegex('player.bunnyScore()'), 'bunnyRaceScore(player)');
-    text = text.replace(escRegex('player.harpyScore()'), 'harpyRaceScore(player)');
-    text = text.replace(escRegex('player.kangaScore()'), 'kangarooRaceScore(player)');
-    text = text.replace(escRegex('player.sharkScore()'), 'sharkRaceScore(player)');
-    text = text.replace(escRegex('player.mutantScore()'), 'mutantRaceScore(player)');
+    text = replace(text, escRegex('player.cowScore()'), 'cowRaceScore(player)');
+    text = replace(text, escRegex('player.sandTrapScore()'), 'sandTrapRaceScore(player)');
+    text = replace(text, escRegex('player.beeScore()'), 'beeRaceScore(player)');
+    text = replace(text, escRegex('player.ferretScore()'), 'ferretRaceScore(player)');
+    text = replace(text, escRegex('player.mouseScore()'), 'mouseRaceScore(player)');
+    text = replace(text, escRegex('player.raccoonScore()'), 'raccoonRaceScore(player)');
+    text = replace(text, escRegex('player.catScore()'), 'catRaceScore(player)');
+    text = replace(text, escRegex('player.lizardScore()'), 'lizardRaceScore(player)');
+    text = replace(text, escRegex('player.spiderScore()'), 'spiderRaceScore(player)');
+    text = replace(text, escRegex('player.horseScore()'), 'horseRaceScore(player)');
+    text = replace(text, escRegex('player.kitsuneScore()'), 'kitsuneRaceScore(player)');
+    text = replace(text, escRegex('player.dragonScore()'), 'dragonRaceScore(player)');
+    text = replace(text, escRegex('player.goblinScore()'), 'goblinRaceScore(player)');
+    text = replace(text, escRegex('player.gooScore()'), 'gooRaceScore(player)');
+    text = replace(text, escRegex('player.nagaScore()'), 'nagaRaceScore(player)');
+    text = replace(text, escRegex('player.bunnyScore()'), 'bunnyRaceScore(player)');
+    text = replace(text, escRegex('player.harpyScore()'), 'harpyRaceScore(player)');
+    text = replace(text, escRegex('player.kangaScore()'), 'kangarooRaceScore(player)');
+    text = replace(text, escRegex('player.sharkScore()'), 'sharkRaceScore(player)');
+    text = replace(text, escRegex('player.mutantScore()'), 'mutantRaceScore(player)');
     // OK - lactationQ
     // OK - isLactating
     text = funcReplacer(text, 'player.cuntChange(', ')', (match, ...args) => 'displayStretchVagina(player, ' + args.join(', ') + ')');
     text = funcReplacer(text, 'player.buttChange(', ')', (match, ...args) => 'displayStretchButt(player, ' + args.join(', ') + ')');
-    text = text.replace(escRegex('player.buttChangeDisplay()'), 'stretchButtText(player)');
+    text = replace(text, escRegex('player.buttChangeDisplay()'), 'stretchButtText(player)');
     // OK - slimeFeed
     // OK - minoCumAddiction
-    text = text.replace(escRegex('player.hasSpells'), 'player.combat.hasSpells');
-    text = text.replace(escRegex('player.spellCount'), 'player.combat.spellCount');
-    text = text.replace(escRegex('player.hairDescript()'), 'describeHair(player)');
-    text = text.replace(escRegex('player.shrinkTits()'), 'shrinkTits(player)');
-    text = text.replace(escRegex('player.shrinkTits(true)'), 'shrinkTits(player, true)');
+    text = replace(text, escRegex('player.hasSpells'), 'player.combat.hasSpells');
+    text = replace(text, escRegex('player.spellCount'), 'player.combat.spellCount');
+    text = replace(text, escRegex('player.hairDescript()'), 'describeHair(player)');
+    text = replace(text, escRegex('player.shrinkTits()'), 'shrinkTits(player)');
+    text = replace(text, escRegex('player.shrinkTits(true)'), 'shrinkTits(player, true)');
     text = funcReplacer(text, 'player.growTits(', ')',
         (match, arg1, arg2, arg3, type) => {
             switch (type) {
@@ -799,82 +820,82 @@ function fixPlayerClass(text: string): string {
                 default: return match;
             }
         });
-    text = text.replace(escRegex('player.minLust'), 'player.stats.minLust');
-    text = text.replace(escRegex('player.minotaurAddicted'), 'minotaurAddicted');
-    text = text.replace(escRegex('player.minotaurNeed'), 'minotaurNeed');
-    text = text.replace(escRegex('player.clearStatuses(true);'), '');
-    text = text.replace(escRegex('player.clearStatuses(false);'), '');
-    text = text.replace(escRegex('player.consumeItem'), 'player.inventory.items.consumeItem');
+    text = replace(text, escRegex('player.minLust'), 'player.stats.minLust');
+    text = replace(text, escRegex('player.minotaurAddicted'), 'minotaurAddicted');
+    text = replace(text, escRegex('player.minotaurNeed'), 'minotaurNeed');
+    text = replace(text, escRegex('player.clearStatuses(true);'), '');
+    text = replace(text, escRegex('player.clearStatuses(false);'), '');
+    text = replace(text, escRegex('player.consumeItem'), 'player.inventory.items.consumeItem');
     // Unused - getLowestSlot
-    text = text.replace(escRegex('player.hasItem'), 'player.inventory.items.has');
+    text = replace(text, escRegex('player.hasItem'), 'player.inventory.items.has');
     text = funcReplacer(text, 'player.itemCount(', ')', (match, itemName) => `player.inventory.items.filter(Inventory.FilterName(${itemName})).reduce(Inventory.TotalQuantity, 0)`);
     // Unused - roomInExistingStack
     text = funcReplacer(text, 'player.roomInExistingStack(', ')', (match, itemName) => `player.inventory.items.find(Inventory.FilterName(${itemName}))`);
     // Unsed - itemSlot
     // Unsed - emptySlot
-    text = text.replace(escRegex('player.destroyItems'), 'player.inventory.items.consumeItem');
+    text = replace(text, escRegex('player.destroyItems'), 'player.inventory.items.consumeItem');
     text = funcReplacer(text, 'player.lengthChange(', ')', (match, arg1, arg2) => `displayLengthChange(player, ${arg1}, ${arg2})`);
     text = funcReplacer(text, 'player.killCocks(', ')', (match, amt) => `displayKillCocks(player, ${amt})`);
     // OK - modCumMultiplier
     text = funcReplacer(text, 'player.increaseCock(', ')', (match, arg1, arg2) => `growCock(player, ${arg1}, ${arg2})`);
     text = funcReplacer(text, 'player.increaseEachCock(', ')', (match, amt) => `growEachCock(player, ${amt})`);
-    text = text.replace(escRegex('player.goIntoHeat(false)'), 'player.goIntoHeat()');
+    text = replace(text, escRegex('player.goIntoHeat(false)'), 'player.goIntoHeat()');
     text = funcReplacer(text, 'player.goIntoHeat(true,', ')', (match, amt) => `displayGoIntoHeat(player, ${amt})`);
-    text = text.replace(escRegex('player.goIntoRut(false)'), 'player.goIntoRut()');
+    text = replace(text, escRegex('player.goIntoRut(false)'), 'player.goIntoRut()');
     text = funcReplacer(text, 'player.goIntoRut(true,', ')', (match, amt) => `displayGoIntoRut(player, ${amt})`);
 
     return text;
 }
 
 function fixCharacterClass(text: string): string {
-    text = text.replace(escRegex('player.femininity'), 'player.body.feminity');
-    text = text.replace(escRegex('player.beardLength'), 'player.body.beard.length');
-    text = text.replace(escRegex('player.beardStyle'), 'player.body.beard.style');
-    text = text.replace(escRegex('player.thickness'), 'player.body.thickness');
-    text = text.replace(escRegex('player.tone'), 'player.body.tone');
+    text = replace(text, escRegex('player.feminity'), 'player.body.femininity');
+    text = replace(text, escRegex('player.beardLength'), 'player.body.beard.length');
+    text = replace(text, escRegex('player.beardStyle'), 'player.body.beard.style');
+    text = replace(text, escRegex('player.thickness'), 'player.body.thickness');
+    text = replace(text, escRegex('player.tone'), 'player.body.tone');
     // Manual - pregnancyType
     // Manual - pregnancyIncubation
     // Manual - buttPregnancyType
     // Manual - buttPregnancyIncubation
-    text = text.replace(escRegex('player.keyItems'), 'player.inventory.keyItems');
-    text = text.replace(escRegex('player.faceDesc()'), 'describeFace(player)');
+    text = replace(text, escRegex('player.keyItems'), 'player.inventory.keyItems');
+    text = replace(text, escRegex('player.faceDesc()'), 'describeFace(player)');
     text = funcReplacer(text, 'player.modFem(', ')', (match, ...args) => `modFem(player, ${args.join(', ')})`);
     text = funcReplacer(text, 'player.modThickness(', ')', (match, ...args) => `modThickness(player, ${args.join(', ')})`);
     text = funcReplacer(text, 'player.modTone(', ')', (match, ...args) => `modTone(player, ${args.join(', ')})`);
     // OK - fixFemininity
-    text = text.replace(escRegex('player.hasBeard'), 'player.body.beard.length > 0');
-    text = text.replace(escRegex('player.beard()'), 'describeBeard(player)');
-    text = text.replace(escRegex('player.skin()'), 'describeSkin(player)');
+    text = replace(text, escRegex('player.hasBeard'), 'player.body.beard.length > 0');
+    text = replace(text, escRegex('player.beard()'), 'describeBeard(player)');
+    text = replace(text, escRegex('player.skin()'), 'describeSkin(player)');
     text = funcReplacer(text, 'player.skin(', ')', (match, ...args) => `describeSkin(player, ${args.join(', ')})`);
-    text = text.replace(escRegex('player.hasMuzzle()'), 'player.body.face.hasMuzzle()');
-    text = text.replace(escRegex('player.face()'), 'describeFaceShort(player)');
+    text = replace(text, escRegex('player.hasMuzzle()'), 'player.body.face.hasMuzzle()');
+    text = replace(text, escRegex('player.face()'), 'describeFaceShort(player)');
     // OK - hasLongTail
-    text = text.replace(escRegex('player.isPregnant()'), 'player.body.wombs.find(Womb.IsPregnant)');
-    text = text.replace(escRegex('player.isButtPregnant()'), 'player.body.buttWomb.isPregnant()');
+    text = replace(text, escRegex('player.isPregnant()'), 'player.body.wombs.find(Womb.IsPregnant)');
+    text = replace(text, escRegex('player.isButtPregnant()'), 'player.body.buttWomb.isPregnant()');
 
     text = funcReplacer(text, 'player.knockUp(', ')', (match, type, time, chance, gurantee) => {
         if (gurantee)
-            return `player.body.wombs.find(Womb.NotPregnant).knockUp(new Pregnancy(${type}, ${time}), ${chance}, true)`;
+            return `player.body.wombs.find(Womb.NotPregnant).knockUp(${type}, ${time}, ${chance}, true)`;
         else if (chance)
-            return `player.body.wombs.find(Womb.NotPregnant).knockUp(new Pregnancy(${type}, ${time}), ${chance})`;
+            return `attemptKnockUp(player, ${type}, ${time}, ${chance})`;
         else
-            return `player.body.wombs.find(Womb.NotPregnant).knockUp(new Pregnancy(${type}, ${time}))`;
+            return `attemptKnockUp(player, ${type}, ${time})`;
     });
-    text = funcReplacer(text, 'player.knockUpForce(', ')', (match, type, time) => `player.body.wombs.find(Womb.NotPregnant).knockUp(new Pregnancy(${type}, ${time}), 0, true)`);
+    text = funcReplacer(text, 'player.knockUpForce(', ')', (match, type, time) => `player.body.wombs.find(Womb.NotPregnant).knockUp(${type}, ${time}, 0, true)`);
 
     text = funcReplacer(text, 'player.buttKnockUp(', ')', (match, type, time, chance, gurantee) => {
         if (gurantee)
-            return `player.body.buttWomb.knockUp(new Pregnancy(${type}, ${time}), ${chance}, true)`;
+            return `player.body.buttWomb.knockUp(${type}, ${time}, ${chance}, true)`;
         else if (chance)
-            return `player.body.buttWomb.knockUp(new Pregnancy(${type}, ${time}), ${chance})`;
+            return `player.body.buttWomb.knockUp(${type}, ${time}, ${chance})`;
         else
-            return `player.body.buttWomb.knockUp(new Pregnancy(${type}, ${time}))`;
+            return `player.body.buttWomb.knockUp(${type}, ${time})`;
     });
-    text = funcReplacer(text, 'player.buttKnockUpForce(', ')', (match, type, time) => `player.body.buttWomb.knockUp(new Pregnancy(${type}, ${time}), 0, true)`);
+    text = funcReplacer(text, 'player.buttKnockUpForce(', ')', (match, type, time) => `player.body.buttWomb.knockUp(${type}, ${time}, 0, true)`);
     // Remove - pregnancyAdvance
     // Remove - pregnancyUpdate
 
-    text = text.replace(escRegex('player.createKeyItem'), 'player.inventory.keyItems.add');
+    text = replace(text, escRegex('player.createKeyItem'), 'player.inventory.keyItems.add');
     text = funcReplacer(text, 'player.removeKeyItem(', ')', (match, item) => `player.inventory.keyItems.remove(${item})`);
     // Manual - addKeyValue
     text = funcReplacer(text, /player\.keyItemv([1-4])\(/, ')', (match, index, item) => `player.inventory.keyItems.get(${item}).value${index} `);
@@ -887,183 +908,183 @@ function fixCharacterClass(text: string): string {
         });
 
     // Unknown - viridianChange
-    text = text.replace(escRegex('player.hasKnot()'), 'player.body.cocks.get(0).hasKnot()');
+    text = replace(text, escRegex('player.hasKnot()'), 'player.body.cocks.get(0).hasKnot()');
     text = funcReplacer(text, 'player.hasKnot(', ')', (match, index) => `player.body.cocks.get(${index}).hasKnot()`);
-    text = text.replace(escRegex('player.maxHP()'), 'player.stats.maxHP');
-    text = text.replace(escRegex('player.buttDescript()'), 'describeButt(player)');
+    text = replace(text, escRegex('player.maxHP()'), 'player.stats.maxHP');
+    text = replace(text, escRegex('player.buttDescript()'), 'describeButt(player)');
 
     return text;
 }
 
 function fixCreatureClass(text: string, name: string): string {
-    text = text.replace(combineStrRegex(name, /\.short([^\w])/g), (match, p1) => `${name}.desc.name${p1} `);
-    text = text.replace(combineStrRegex(name, /\.a([^\w])/g), (match, p1) => `${name}.desc.a${p1} `);
-    text = text.replace(escRegex(`${name}.capitalA`), `${name}.desc.capitalA`);
+    text = replace(text, combineStrRegex(name, /\.short([^\w])/g), (match, p1) => `${name}.desc.name${p1} `);
+    text = replace(text, combineStrRegex(name, /\.a([^\w])/g), (match, p1) => `${name}.desc.a${p1} `);
+    text = replace(text, escRegex(`${name}.capitalA`), `${name}.desc.capitalA`);
 
-    text = text.replace(escRegex(`${name}.weaponName`), `${name}.inventory.weapon.displayName`);
-    text = text.replace(escRegex(`${name}.weaponVerb`), `${name}.inventory.weapon.verb`);
+    text = replace(text, escRegex(`${name}.weaponName`), `${name}.inventory.weapon.displayName`);
+    text = replace(text, escRegex(`${name}.weaponVerb`), `${name}.inventory.weapon.verb`);
     // This is for the calcuated attack, not weapon attack
     // Manual - assignment
-    text = text.replace(escRegex(`${name}.weaponAttack`), `${name}.combat.stats.weaponAttack`);
+    text = replace(text, escRegex(`${name}.weaponAttack`), `${name}.combat.stats.weaponAttack`);
     // Unknown - weaponPerk
-    text = text.replace(escRegex(`${name}.weaponValue`), `${name}.inventory.weapon.value`);
+    text = replace(text, escRegex(`${name}.weaponValue`), `${name}.inventory.weapon.value`);
 
-    text = text.replace(escRegex(`${name}.armorName`), `${name}.inventory.armor.displayName`);
-    text = text.replace(escRegex(`${name}.armorVerb`), `${name}.inventory.armor.verb`);
+    text = replace(text, escRegex(`${name}.armorName`), `${name}.inventory.armor.displayName`);
+    text = replace(text, escRegex(`${name}.armorVerb`), `${name}.inventory.armor.verb`);
     // This is for the calcuated defense, not armor defense
     // Manual - assignment
-    text = text.replace(escRegex(`${name}.armorDef`), `${name}.combat.stats.defense`);
+    text = replace(text, escRegex(`${name}.armorDef`), `${name}.combat.stats.defense`);
     // Unknown - armorPerk
-    text = text.replace(escRegex(`${name}.armorValue`), `${name}.inventory.armor.value`);
+    text = replace(text, escRegex(`${name}.armorValue`), `${name}.inventory.armor.value`);
 
-    text = text.replace(escRegex(`${name}.str`), `${name}.stats.str`);
-    text = text.replace(escRegex(`${name}.tou`), `${name}.stats.tou`);
-    text = text.replace(escRegex(`${name}.spe`), `${name}.stats.spe`);
-    text = text.replace(escRegex(`${name}.inte`), `${name}.stats.int`);
-    text = text.replace(escRegex(`${name}.lib`), `${name}.stats.lib`);
-    text = text.replace(escRegex(`${name}.sens`), `${name}.stats.sens`);
-    text = text.replace(escRegex(`${name}.cor`), `${name}.stats.cor`);
-    text = text.replace(escRegex(`${name}.fatigue`), `${name}.stats.fatigue`);
+    text = replace(text, escRegex(`${name}.str`), `${name}.stats.str`);
+    text = replace(text, escRegex(`${name}.tou`), `${name}.stats.tou`);
+    text = replace(text, escRegex(`${name}.spe`), `${name}.stats.spe`);
+    text = replace(text, escRegex(`${name}.inte`), `${name}.stats.int`);
+    text = replace(text, escRegex(`${name}.lib`), `${name}.stats.lib`);
+    text = replace(text, escRegex(`${name}.sens`), `${name}.stats.sens`);
+    text = replace(text, escRegex(`${name}.cor`), `${name}.stats.cor`);
+    text = replace(text, escRegex(`${name}.fatigue`), `${name}.stats.fatigue`);
 
-    text = text.replace(escRegex(`${name}.HP`), `${name}.stats.HP`);
-    text = text.replace(escRegex(`${name}.lust`), `${name}.stats.lust`);
+    text = replace(text, escRegex(`${name}.HP`), `${name}.stats.HP`);
+    text = replace(text, escRegex(`${name}.lust`), `${name}.stats.lust`);
 
-    text = text.replace(escRegex(`${name}.XP`), `${name}.stats.XP`);
-    text = text.replace(escRegex(`${name}.level`), `${name}.stats.level`);
-    text = text.replace(escRegex(`${name}.gems`), `${name}.inventory.gems`);
-    text = text.replace(escRegex(`${name}.additionalXP`), `${name}.stats.additionalXP`);
+    text = replace(text, escRegex(`${name}.XP`), `${name}.stats.XP`);
+    text = replace(text, escRegex(`${name}.level`), `${name}.stats.level`);
+    text = replace(text, escRegex(`${name}.gems`), `${name}.inventory.gems`);
+    text = replace(text, escRegex(`${name}.additionalXP`), `${name}.stats.additionalXP`);
 
     // OK - gender
-    text = text.replace(escRegex(`${name}.tallness`), `${name}.body.tallness`);
+    text = replace(text, escRegex(`${name}.tallness`), `${name}.body.tallness`);
 
-    text = text.replace(escRegex(`${name}.hairType`), `${name}.body.hair.type`);
-    text = text.replace(escRegex(`${name}.hairColor`), `${name}.body.hair.color`);
-    text = text.replace(escRegex(`${name}.hairLength`), `${name}.body.hair.length`);
+    text = replace(text, escRegex(`${name}.hairType`), `${name}.body.hair.type`);
+    text = replace(text, escRegex(`${name}.hairColor`), `${name}.body.hair.color`);
+    text = replace(text, escRegex(`${name}.hairLength`), `${name}.body.hair.length`);
 
-    text = text.replace(escRegex(`${name}.skinType`), `${name}.body.skin.type`);
-    text = text.replace(escRegex(`${name}.skinTone`), `${name}.body.skin.tone`);
-    text = text.replace(escRegex(`${name}.skinDesc`), `${name}.body.skin.desc`);
-    text = text.replace(escRegex(`${name}.skinAdj`), `${name}.body.skin.adj`);
+    text = replace(text, escRegex(`${name}.skinType`), `${name}.body.skin.type`);
+    text = replace(text, escRegex(`${name}.skinTone`), `${name}.body.skin.tone`);
+    text = replace(text, escRegex(`${name}.skinDesc`), `${name}.body.skin.desc`);
+    text = replace(text, escRegex(`${name}.skinAdj`), `${name}.body.skin.adj`);
 
-    text = text.replace(escRegex(`${name}.faceType`), `${name}.body.face.type`);
+    text = replace(text, escRegex(`${name}.faceType`), `${name}.body.face.type`);
 
-    text = text.replace(escRegex(`${name}.earType`), `${name}.body.ear.type`);
-    text = text.replace(escRegex(`${name}.earValue`), `${name}.body.ear.value`);
+    text = replace(text, escRegex(`${name}.earType`), `${name}.body.ear.type`);
+    text = replace(text, escRegex(`${name}.earValue`), `${name}.body.ear.value`);
 
-    text = text.replace(escRegex(`${name}.hornType`), `${name}.body.horns.type`);
-    text = text.replace(escRegex(`${name}.horns`), `${name}.body.horns.count`);
+    text = replace(text, escRegex(`${name}.hornType`), `${name}.body.horns.type`);
+    text = replace(text, escRegex(`${name}.horns`), `${name}.body.horns.count`);
 
-    text = text.replace(escRegex(`${name}.wingType`), `${name}.body.wings.type`);
-    text = text.replace(escRegex(`${name}.wingDesc`), `${name}.body.wings.desc`);
+    text = replace(text, escRegex(`${name}.wingType`), `${name}.body.wings.type`);
+    text = replace(text, escRegex(`${name}.wingDesc`), `${name}.body.wings.desc`);
 
-    text = text.replace(escRegex(`${name}.lowerBody`), `${name}.body.legs.type`);
+    text = replace(text, escRegex(`${name}.lowerBody`), `${name}.body.legs.type`);
 
-    text = text.replace(escRegex(`${name}.tailType`), `${name}.body.tail.type`);
-    text = text.replace(escRegex(`${name}.tailVenom`), `${name}.body.tail.venom`);
-    text = text.replace(escRegex(`${name}.tailRecharge`), `${name}.body.tail.recharge`);
+    text = replace(text, escRegex(`${name}.tailType`), `${name}.body.tail.type`);
+    text = replace(text, escRegex(`${name}.tailVenom`), `${name}.body.tail.venom`);
+    text = replace(text, escRegex(`${name}.tailRecharge`), `${name}.body.tail.recharge`);
 
-    text = text.replace(escRegex(`${name}.hipRating`), `${name}.body.hips.rating`);
-    text = text.replace(escRegex(`${name}.buttRating`), `${name}.body.butt.rating`);
+    text = replace(text, escRegex(`${name}.hipRating`), `${name}.body.hips.rating`);
+    text = replace(text, escRegex(`${name}.buttRating`), `${name}.body.butt.rating`);
 
     // Manual - nipplesPierced
     // Manual - nipplesPShort
     // Manual - nipplesPLong
-    text = text.replace(escRegex(`${name}.lipPierced`), `${name}.inventory.piercings.lip.isEquiped()`);
-    text = text.replace(escRegex(`${name}.lipPShort`), `${name}.inventory.piercings.lip.item.shortDesc`);
-    text = text.replace(escRegex(`${name}.lipPLong`), `${name}.inventory.piercings.lip.item.longDesc`);
-    text = text.replace(escRegex(`${name}.tonguePierced`), `${name}.inventory.piercings.tongue.isEquipped()`);
-    text = text.replace(escRegex(`${name}.tonguePShort`), `${name}.inventory.piercings.tongue.item.shortDesc`);
-    text = text.replace(escRegex(`${name}.tonguePLong`), `${name}.inventory.piercings.tongue.item.longDesc`);
-    text = text.replace(escRegex(`${name}.eyebrowPierced`), `${name}.inventory.piercings.eyebrow.isEquipped()`);
-    text = text.replace(escRegex(`${name}.eyebrowPShort`), `${name}.inventory.piercings.eyebrow.item.shortDesc`);
-    text = text.replace(escRegex(`${name}.eyebrowPLong`), `${name}.inventory.piercings.eyebrow.item.longDesc`);
-    text = text.replace(escRegex(`${name}.earsPierced`), `${name}.inventory.piercings.isEquipped()`);
-    text = text.replace(escRegex(`${name}.earsPShort`), `${name}.inventory.piercings.item.shortDesc`);
-    text = text.replace(escRegex(`${name}.earsPLong`), `${name}.inventory.piercings.item.longDesc`);
-    text = text.replace(escRegex(`${name}.nosePierced`), `${name}.inventory.piercings.isEquipped()`);
-    text = text.replace(escRegex(`${name}.nosePShort`), `${name}.inventory.piercings.item.shortDesc`);
-    text = text.replace(escRegex(`${name}.nosePLong`), `${name}.inventory.piercings.item.longDesc`);
-    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.labiaPierced/g), `${name}.inventory.piercings.labia.isEquipped()`);
-    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.labiaPShort/g), `${name}.inventory.piercings.labia.item.shortDesc`);
-    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.labiaPLong/g), `${name}.inventory.piercings.labia.item.longDesc`);
-    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.clitPierced/g), `${name}.inventory.piercings.clit.isEquipped()`);
-    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.clitPShort/g), `${name}.inventory.piercings.clit.item.shortDesc`);
-    text = text.replace(combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.clitPLong/g), `${name}.inventory.piercings.clit.item.longDesc`);
-    text = text.replace(combineStrRegex(name, /\.cocks\[([^\]]+)\]\.isPierced/g), (match, p1) => `${name}.inventory.piercings.cocks.get(${p1}).isEquipped()`);
-    text = text.replace(combineStrRegex(name, /\.cocks\[([^\]]+)\]\.pShortDesc/g), (match, p1) => `${name}.inventory.piercings.cocks.get(${p1}).item.shortDesc`);
-    text = text.replace(combineStrRegex(name, /\.cocks\[([^\]]+)\]\.pLongDesc/g), (match, p1) => `${name}.inventory.piercings.cocks.get(${p1}).item.longDesc`);
+    text = replace(text, escRegex(`${name}.lipPierced`), `${name}.inventory.piercings.lip.isEquiped()`);
+    text = replace(text, escRegex(`${name}.lipPShort`), `${name}.inventory.piercings.lip.item.shortDesc`);
+    text = replace(text, escRegex(`${name}.lipPLong`), `${name}.inventory.piercings.lip.item.longDesc`);
+    text = replace(text, escRegex(`${name}.tonguePierced`), `${name}.inventory.piercings.tongue.isEquipped()`);
+    text = replace(text, escRegex(`${name}.tonguePShort`), `${name}.inventory.piercings.tongue.item.shortDesc`);
+    text = replace(text, escRegex(`${name}.tonguePLong`), `${name}.inventory.piercings.tongue.item.longDesc`);
+    text = replace(text, escRegex(`${name}.eyebrowPierced`), `${name}.inventory.piercings.eyebrow.isEquipped()`);
+    text = replace(text, escRegex(`${name}.eyebrowPShort`), `${name}.inventory.piercings.eyebrow.item.shortDesc`);
+    text = replace(text, escRegex(`${name}.eyebrowPLong`), `${name}.inventory.piercings.eyebrow.item.longDesc`);
+    text = replace(text, escRegex(`${name}.earsPierced`), `${name}.inventory.piercings.isEquipped()`);
+    text = replace(text, escRegex(`${name}.earsPShort`), `${name}.inventory.piercings.item.shortDesc`);
+    text = replace(text, escRegex(`${name}.earsPLong`), `${name}.inventory.piercings.item.longDesc`);
+    text = replace(text, escRegex(`${name}.nosePierced`), `${name}.inventory.piercings.isEquipped()`);
+    text = replace(text, escRegex(`${name}.nosePShort`), `${name}.inventory.piercings.item.shortDesc`);
+    text = replace(text, escRegex(`${name}.nosePLong`), `${name}.inventory.piercings.item.longDesc`);
+    text = replace(text, combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.labiaPierced/g), `${name}.inventory.piercings.labia.isEquipped()`);
+    text = replace(text, combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.labiaPShort/g), `${name}.inventory.piercings.labia.item.shortDesc`);
+    text = replace(text, combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.labiaPLong/g), `${name}.inventory.piercings.labia.item.longDesc`);
+    text = replace(text, combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.clitPierced/g), `${name}.inventory.piercings.clit.isEquipped()`);
+    text = replace(text, combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.clitPShort/g), `${name}.inventory.piercings.clit.item.shortDesc`);
+    text = replace(text, combineStrRegex(name, /\.vaginas\[([^\]]+)\]\.clitPLong/g), `${name}.inventory.piercings.clit.item.longDesc`);
+    text = replace(text, combineStrRegex(name, /\.cocks\[([^\]]+)\]\.isPierced/g), (match, p1) => `${name}.inventory.piercings.cocks.get(${p1}).isEquipped()`);
+    text = replace(text, combineStrRegex(name, /\.cocks\[([^\]]+)\]\.pShortDesc/g), (match, p1) => `${name}.inventory.piercings.cocks.get(${p1}).item.shortDesc`);
+    text = replace(text, combineStrRegex(name, /\.cocks\[([^\]]+)\]\.pLongDesc/g), (match, p1) => `${name}.inventory.piercings.cocks.get(${p1}).item.longDesc`);
 
-    text = text.replace(escRegex(`${name}.antennae`), `${name}.body.antennae.type`);
-    text = text.replace(escRegex(`${name}.eyeType`), `${name}.body.eyes.type`);
-    text = text.replace(escRegex(`${name}.tongueType`), `${name}.body.tongue.type`);
-    text = text.replace(escRegex(`${name}.armType`), `${name}.body.arms.type`);
-    text = text.replace(escRegex(`${name}.gills`), `${name}.body.gills`);
-    text = text.replace(escRegex(`${name}.cocks`), `${name}.body.cocks`);
-    text = text.replace(escRegex(`${name}.balls`), `${name}.body.balls.count`);
-    text = text.replace(escRegex(`${name}.cumMultiplier`), `${name}.body.cumMultiplier`);
-    text = text.replace(escRegex(`${name}.ballSize`), `${name}.body.balls.size`);
+    text = replace(text, escRegex(`${name}.antennae`), `${name}.body.antennae.type`);
+    text = replace(text, escRegex(`${name}.eyeType`), `${name}.body.eyes.type`);
+    text = replace(text, escRegex(`${name}.tongueType`), `${name}.body.tongue.type`);
+    text = replace(text, escRegex(`${name}.armType`), `${name}.body.arms.type`);
+    text = replace(text, escRegex(`${name}.gills`), `${name}.body.gills`);
+    text = replace(text, escRegex(`${name}.cocks`), `${name}.body.cocks`);
+    text = replace(text, combineStrRegex(name, /\.balls(\W)/g), (match, p1) => `${name}.body.balls.count${p1}`);
+    text = replace(text, escRegex(`${name}.cumMultiplier`), `${name}.body.cumMultiplier`);
+    text = replace(text, escRegex(`${name}.ballSize`), `${name}.body.balls.size`);
     // OK - hoursSinceCum
-    text = text.replace(escRegex(`${name}.vaginas`), `${name}.body.vaginas`);
-    text = text.replace(escRegex(`${name}.fertility`), `${name}.body.fertility`);
-    text = text.replace(escRegex(`${name}.clitLength`), `${name}.body.clit.length`);
+    text = replace(text, escRegex(`${name}.vaginas`), `${name}.body.vaginas`);
+    text = replace(text, escRegex(`${name}.fertility`), `${name}.body.fertility`);
+    text = replace(text, escRegex(`${name}.clitLength`), `${name}.body.clit.length`);
     // Manual - nippleLength
-    text = text.replace(escRegex(`${name}.breastRows`), `${name}.body.chest`);
-    text = text.replace(combineStrRegex(name, /\.ass([^\w])/g), (match, p1) => `${name}.body.butt${p1} `);
+    text = replace(text, escRegex(`${name}.breastRows`), `${name}.body.chest`);
+    text = replace(text, combineStrRegex(name, /\.ass([^\w])/g), (match, p1) => `${name}.body.butt${p1} `);
     // Unused - perk()
     // Unused - perks()
-    text = text.replace(escRegex(`${name}.numPerks`), `${name}.perks.length`);
-    text = text.replace(escRegex(`${name}.statusAffects`), `${name}.effects`);
+    text = replace(text, escRegex(`${name}.numPerks`), `${name}.effects.length`);
+    text = replace(text, escRegex(`${name}.statusAffects`), `${name}.effects`);
 
     // OK - orgasm()
-    text = text.replace(escRegex(`${name}.createPerk`), `${name}.perks.add`);
-    text = text.replace(escRegex(`${name}.removePerk`), `${name}.perks.remove`);
+    text = replace(text, escRegex(`${name}.createPerk`), `${name}.effects.create`);
+    text = replace(text, escRegex(`${name}.removePerk`), `${name}.effects.removeByName`);
     text = funcReplacer(text, name + '.findPerk(', /\)(?:\s*([!><=]+)\s*([-\d]+))?/,
         (match, item, compOp, compVal) => {
             if (compOp && compOp.match(/<=?|==/) && +compVal <= 0)
-                return `!${name}.perks.has(${item})`;
-            return `${name}.perks.has(${item})`;
+                return `!${name}.effects.has(${item})`;
+            return `${name}.effects.has(${item})`;
         });
     // Unused - perkDuplicated
     // Unused - removePerks
-    text = funcReplacer(text, name + '.addPerkValue(', ')', (match, type, index, arg) => `${name}.perks.get(${type}).value${index} += ${arg} `);
-    text = funcReplacer(text, name + '.setPerkValue(', ')', (match, type, index, arg) => `${name}.perks.get(${type}).value${index} = ${arg} `);
-    text = funcReplacer(text, combineStrRegex(name, /\.perkv([1-4])\(/), ')', (match, index, type) => `${name}.perks.get(${type}).value${index} `);
+    text = funcReplacer(text, name + '.addPerkValue(', ')', (match, type, index, arg) => `${name}.effects.getByName(${type}).value${index} += ${arg} `);
+    text = funcReplacer(text, name + '.setPerkValue(', ')', (match, type, index, arg) => `${name}.effects.getByName(${type}).value${index} = ${arg} `);
+    text = funcReplacer(text, combineStrRegex(name, /\.perkv([1-4])\(/), ')', (match, index, type) => `${name}.effects.getByName(${type}).value${index} `);
 
-    text = text.replace(escRegex(`${name}.createStatusAffect`), `${name}.effects.add`);
-    text = text.replace(escRegex(`${name}.removeStatusAffect`), `${name}.effects.remove`);
+    text = replace(text, escRegex(`${name}.createStatusAffect`), `${name}.effects.create`);
+    text = replace(text, escRegex(`${name}.removeStatusAffect`), `${name}.effects.removeByName`);
     text = funcReplacer(text, name + '.findStatusAffect(', /\)(?:\s*([!><=]+)\s*([-\d]+))?/,
         (match, item, compOp, compVal) => {
             if (compOp && compOp.match(/<=?|==/) && +compVal <= 0)
                 return `!${name}.effects.has(${item})`;
             return `${name}.effects.has(${item})`;
         });
-    text = funcReplacer(text, name + '.changeStatusValue(', ')', (match, type, index, arg) => `${name}.effects.get(${type}).value${index} = ${arg} `);
-    text = funcReplacer(text, name + '.addStatusValue(', ')', (match, type, index, arg) => `${name}.effects.get(${type}).value${index} += ${arg} `);
-    text = funcReplacer(text, name + '.statusAffect(', ')', (match, type) => `${name}.effects.get(${type})`);
-    text = funcReplacer(text, combineStrRegex(name, /\.statusAffectv([1-4])\(/), ')', (match, index, type) => `${name}.effects.get(${type}).value${index}`);
+    text = funcReplacer(text, name + '.changeStatusValue(', ')', (match, type, index, arg) => `${name}.effects.getByName(${type}).value${index} = ${arg} `);
+    text = funcReplacer(text, name + '.addStatusValue(', ')', (match, type, index, arg) => `${name}.effects.getByName(${type}).value${index} += ${arg} `);
+    text = funcReplacer(text, name + '.statusAffect(', ')', (match, type) => `${name}.effects.getByName(${type})`);
+    text = funcReplacer(text, combineStrRegex(name, /\.statusAffectv([1-4])\(/), ')', (match, index, type) => `${name}.effects.getByName(${type}).value${index}`);
     // Unused - removeStatuses
-    text = text.replace(escRegex(`${name}.biggestTitSize()`), `${name}.body.chest.sort(BreastRow.Largest).get(0).rating`);
+    text = replace(text, escRegex(`${name}.biggestTitSize()`), `${name}.body.chest.sort(BreastRow.Largest).get(0).rating`);
     text = funcReplacer(text, name + '.cockArea(', ')', (match, index) => `${name}.body.cocks.get(${index}).area`);
-    text = text.replace(escRegex(`${name}.biggestCockLength()`), `${name}.body.cocks.sort(Cock.Largest).get(0).length`);
-    text = text.replace(escRegex(`${name}.biggestCockArea()`), `${name}.body.cocks.sort(Cock.Largest).get(0).area`);
-    text = text.replace(escRegex(`${name}.biggestCockArea2()`), `${name}.body.cocks.sort(Cock.Largest).get(1).area`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.longestCock()]`), `${name}.body.cocks.sort(Cock.Longest).get(0)`);
-    text = text.replace(escRegex(`${name}.longestCock()`), `${name}.body.cocks.sort(Cock.Longest).get(0)`);
-    text = text.replace(escRegex(`${name}.longestCockLength()`), `${name}.body.cocks.sort(Cock.Longest).get(0).length`);
-    text = text.replace(escRegex(`${name}.longestHorseCockLength()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.HORSE)).sort(Cock.Longest).get(0).length`);
+    text = replace(text, escRegex(`${name}.biggestCockLength()`), `${name}.body.cocks.sort(Cock.Largest).get(0).length`);
+    text = replace(text, escRegex(`${name}.biggestCockArea()`), `${name}.body.cocks.sort(Cock.Largest).get(0).area`);
+    text = replace(text, escRegex(`${name}.biggestCockArea2()`), `${name}.body.cocks.sort(Cock.Largest).get(1).area`);
+    text = replace(text, escRegex(`${name}.cocks[${name}.longestCock()]`), `${name}.body.cocks.sort(Cock.Longest).get(0)`);
+    text = replace(text, escRegex(`${name}.longestCock()`), `${name}.body.cocks.sort(Cock.Longest).get(0)`);
+    text = replace(text, escRegex(`${name}.longestCockLength()`), `${name}.body.cocks.sort(Cock.Longest).get(0).length`);
+    text = replace(text, escRegex(`${name}.longestHorseCockLength()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.HORSE)).sort(Cock.Longest).get(0).length`);
     // Unknown - twoDickRadarSpecial()
-    text = text.replace(escRegex(`${name}.totalCockThickness()`), `${name}.body.cocks.reduce(Cock.TotalThickness, 0)`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.thickestCock()]`), `${name}.body.cocks.sort(Cock.Thickest).get(0)`);
-    text = text.replace(escRegex(`${name}.thickestCock()`), `${name}.body.cocks.sort(Cock.Thickest).get(0)`);
-    text = text.replace(escRegex(`${name}.thickestCockThickness()`), `${name}.body.cocks.sort(Cock.Thickest).get(0).thickness`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.thinnestCockIndex()]`), `${name}.body.cocks.sort(Cock.Thinnest).get(0)`);
-    text = text.replace(escRegex(`${name}.thinnestCockIndex()`), `${name}.body.cocks.sort(Cock.Thinnest).get(0)`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.smallestCockIndex()]`), `${name}.body.cocks.sort(Cock.Smallest).get(0)`);
-    text = text.replace(escRegex(`${name}.smallestCockIndex()`), `${name}.body.cocks.sort(Cock.Smallest).get(0)`);
-    text = text.replace(escRegex(`${name}.smallestCockLength()`), `${name}.body.cocks.sort(Cock.Smallest).get(0).length`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.shortestCockIndex()]`), `${name}.body.cocks.sort(Cock.Shortest).get(0)`);
-    text = text.replace(escRegex(`${name}.shortestCockIndex()`), `${name}.body.cocks.sort(Cock.Shortest).get(0)`);
-    text = text.replace(escRegex(`${name}.shortestCockLength()`), `${name}.body.cocks.sort(Cock.Shortest).get(0).length`);
+    text = replace(text, escRegex(`${name}.totalCockThickness()`), `${name}.body.cocks.reduce(Cock.TotalThickness, 0)`);
+    text = replace(text, escRegex(`${name}.cocks[${name}.thickestCock()]`), `${name}.body.cocks.sort(Cock.Thickest).get(0)`);
+    text = replace(text, escRegex(`${name}.thickestCock()`), `${name}.body.cocks.sort(Cock.Thickest).get(0)`);
+    text = replace(text, escRegex(`${name}.thickestCockThickness()`), `${name}.body.cocks.sort(Cock.Thickest).get(0).thickness`);
+    text = replace(text, escRegex(`${name}.cocks[${name}.thinnestCockIndex()]`), `${name}.body.cocks.sort(Cock.Thinnest).get(0)`);
+    text = replace(text, escRegex(`${name}.thinnestCockIndex()`), `${name}.body.cocks.sort(Cock.Thinnest).get(0)`);
+    text = replace(text, escRegex(`${name}.cocks[${name}.smallestCockIndex()]`), `${name}.body.cocks.sort(Cock.Smallest).get(0)`);
+    text = replace(text, escRegex(`${name}.smallestCockIndex()`), `${name}.body.cocks.sort(Cock.Smallest).get(0)`);
+    text = replace(text, escRegex(`${name}.smallestCockLength()`), `${name}.body.cocks.sort(Cock.Smallest).get(0).length`);
+    text = replace(text, escRegex(`${name}.cocks[${name}.shortestCockIndex()]`), `${name}.body.cocks.sort(Cock.Shortest).get(0)`);
+    text = replace(text, escRegex(`${name}.shortestCockIndex()`), `${name}.body.cocks.sort(Cock.Shortest).get(0)`);
+    text = replace(text, escRegex(`${name}.shortestCockLength()`), `${name}.body.cocks.sort(Cock.Shortest).get(0).length`);
     text = funcReplacer(text,
         combineStrRegex(name, /\.cockThatFits(2?)\(/), /\)(?:\s*([!><=]+)\s*([-\d]+))?/,
         (match, second, arg1, arg2, compOp, compVal) => {
@@ -1087,18 +1108,18 @@ function fixCreatureClass(text: string, name: string): string {
             return str;
         }
     );
-    text = text.replace(escRegex(`${name}.smallestCockArea()`), `${name}.body.cocks.sort(Cock.Smallest).get(0).area`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.smallestCock()]`), `${name}.body.cocks.sort(Cock.Smallest).get(0)`);
-    text = text.replace(escRegex(`${name}.smallestCock()`), `${name}.body.cocks.sort(Cock.Smallest).get(0)`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.biggestCockIndex()]`), `${name}.body.cocks.sort(Cock.Largest).get(0)`);
-    text = text.replace(escRegex(`${name}.biggestCockIndex()`), `${name}.body.cocks.sort(Cock.Largest).get(0)`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.biggestCockIndex2()]`), `${name}.body.cocks.sort(Cock.Largest).get(1)`);
-    text = text.replace(escRegex(`${name}.biggestCockIndex2()`), `${name}.body.cocks.sort(Cock.Largest).get(1)`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.smallestCockIndex2()]`), `${name}.body.cocks.sort(Cock.Smallest).get(1)`);
-    text = text.replace(escRegex(`${name}.smallestCockIndex2()`), `${name}.body.cocks.sort(Cock.Smallest).get(1)`);
-    text = text.replace(escRegex(`${name}.cocks[${name}.biggestCockIndex3()]`), `${name}.body.cocks.sort(Cock.Largest).get(2)`);
-    text = text.replace(escRegex(`${name}.biggestCockIndex3()`), `${name}.body.cocks.sort(Cock.Largest).get(2)`);
-    text = text.replace(escRegex(`${name}.cockDescript()`), `describeCock(${name}, ${name}.body.cocks.get(0))`);
+    text = replace(text, escRegex(`${name}.smallestCockArea()`), `${name}.body.cocks.sort(Cock.Smallest).get(0).area`);
+    text = replace(text, escRegex(`${name}.cocks[${name}.smallestCock()]`), `${name}.body.cocks.sort(Cock.Smallest).get(0)`);
+    text = replace(text, escRegex(`${name}.smallestCock()`), `${name}.body.cocks.sort(Cock.Smallest).get(0)`);
+    text = replace(text, escRegex(`${name}.cocks[${name}.biggestCockIndex()]`), `${name}.body.cocks.sort(Cock.Largest).get(0)`);
+    text = replace(text, escRegex(`${name}.biggestCockIndex()`), `${name}.body.cocks.sort(Cock.Largest).get(0)`);
+    text = replace(text, escRegex(`${name}.cocks[${name}.biggestCockIndex2()]`), `${name}.body.cocks.sort(Cock.Largest).get(1)`);
+    text = replace(text, escRegex(`${name}.biggestCockIndex2()`), `${name}.body.cocks.sort(Cock.Largest).get(1)`);
+    text = replace(text, escRegex(`${name}.cocks[${name}.smallestCockIndex2()]`), `${name}.body.cocks.sort(Cock.Smallest).get(1)`);
+    text = replace(text, escRegex(`${name}.smallestCockIndex2()`), `${name}.body.cocks.sort(Cock.Smallest).get(1)`);
+    text = replace(text, escRegex(`${name}.cocks[${name}.biggestCockIndex3()]`), `${name}.body.cocks.sort(Cock.Largest).get(2)`);
+    text = replace(text, escRegex(`${name}.biggestCockIndex3()`), `${name}.body.cocks.sort(Cock.Largest).get(2)`);
+    text = replace(text, escRegex(`${name}.cockDescript()`), `describeCock(${name}, ${name}.body.cocks.get(0))`);
     text = funcReplacer(text, name + '.cockDescript(', ')',
         (match, arg) =>
             !isNaN(+arg) ?
@@ -1111,90 +1132,90 @@ function fixCreatureClass(text: string, name: string): string {
                 `describeCockAdj(${name}, ${arg})` :
                 `describeCockAdj(${name}, ${name}.body.cocks.get(0)`
     );
-    text = text.replace(escRegex(`${name}.wetness()`), `${name}.body.vaginas.get(0).wetness`);
+    text = replace(text, escRegex(`${name}.wetness()`), `${name}.body.vaginas.get(0).wetness`);
     // Manual - vaginaType()
-    text = text.replace(escRegex(`${name}.looseness()`), `${name}.body.vaginas.get(0).looseness`);
-    text = text.replace(escRegex(`${name}.looseness(true)`), `${name}.body.vaginas.get(0).looseness`);
-    text = text.replace(escRegex(`${name}.looseness(false)`), `${name}.body.butt.looseness`);
+    text = replace(text, escRegex(`${name}.looseness()`), `${name}.body.vaginas.get(0).looseness`);
+    text = replace(text, escRegex(`${name}.looseness(true)`), `${name}.body.vaginas.get(0).looseness`);
+    text = replace(text, escRegex(`${name}.looseness(false)`), `${name}.body.butt.looseness`);
     // OK - vaginalCapacity()
     // OK - analCapacity()
-    text = text.replace(escRegex(`${name}.hasFuckableNipples()`), `${name}.body.chest.find(BreastRow.FuckableNipples)`);
-    text = text.replace(escRegex(`!${name}.hasBreasts()`), `${name}.body.chest.length <= 0`);
-    text = text.replace(escRegex(`${name}.hasBreasts()`), `${name}.body.chest.length > 0`);
+    text = replace(text, escRegex(`${name}.hasFuckableNipples()`), `${name}.body.chest.find(BreastRow.FuckableNipples)`);
+    text = replace(text, escRegex(`!${name}.hasBreasts()`), `${name}.body.chest.length <= 0`);
+    text = replace(text, escRegex(`${name}.hasBreasts()`), `${name}.body.chest.length > 0`);
     // Unused - hasNipples()
     // OK - lactationSpeed()
-    text = text.replace(escRegex(`${name}.dogScore()`), `dogRaceScore(${name})`);
-    text = text.replace(escRegex(`${name}.foxScore()`), `foxRaceScore(${name})`);
-    text = text.replace(escRegex(`${name}.biggestLactation()`), `${name}.body.chest.sort(BreastRow.LactationMost).get(0).lactationMultiplier`);
+    text = replace(text, escRegex(`${name}.dogScore()`), `dogRaceScore(${name})`);
+    text = replace(text, escRegex(`${name}.foxScore()`), `foxRaceScore(${name})`);
+    text = replace(text, escRegex(`${name}.biggestLactation()`), `${name}.body.chest.sort(BreastRow.LactationMost).get(0).lactationMultiplier`);
     // OK - milked()
     text = funcReplacer(text, name + '.boostLactation(', ')', (match, arg) => `boostLactation(${name}, ${arg})`);
-    text = text.replace(escRegex(`${name}.averageLactation()`), `${name}.body.chest.reduce(BreastRow.AverageLactation, 0)`);
+    text = replace(text, escRegex(`${name}.averageLactation()`), `${name}.body.chest.reduce(BreastRow.AverageLactation, 0)`);
     // OK - virilityQ()
     // OK - cumQ()
     text = funcReplacer(text, name + '.countCocksOfType(', ')', (match, type) => `${name}.body.cocks.filter(Cock.FilterType(${type})).length`);
-    text = text.replace(escRegex(`${name}.anemoneCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.ANEMONE)).length`);
-    text = text.replace(escRegex(`${name}.catCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.CAT)).length`);
-    text = text.replace(escRegex(`${name}.demonCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.DEMON)).length`);
-    text = text.replace(escRegex(`${name}.displacerCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.DISPLACER)).length`);
-    text = text.replace(escRegex(`${name}.dogCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.DOG)).length`);
-    text = text.replace(escRegex(`${name}.dragonCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.DRAGON)).length`);
-    text = text.replace(escRegex(`${name}.foxCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.FOX)).length`);
-    text = text.replace(escRegex(`${name}.horseCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.HORSE)).length`);
-    text = text.replace(escRegex(`${name}.kangaCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.KANGAROO)).length`);
-    text = text.replace(escRegex(`${name}.lizardCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.LIZARD)).length`);
-    text = text.replace(escRegex(`${name}.normalCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.HUMAN)).length`);
-    text = text.replace(escRegex(`${name}.tentacleCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.TENTACLE)).length`);
+    text = replace(text, escRegex(`${name}.anemoneCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.ANEMONE)).length`);
+    text = replace(text, escRegex(`${name}.catCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.CAT)).length`);
+    text = replace(text, escRegex(`${name}.demonCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.DEMON)).length`);
+    text = replace(text, escRegex(`${name}.displacerCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.DISPLACER)).length`);
+    text = replace(text, escRegex(`${name}.dogCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.DOG)).length`);
+    text = replace(text, escRegex(`${name}.dragonCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.DRAGON)).length`);
+    text = replace(text, escRegex(`${name}.foxCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.FOX)).length`);
+    text = replace(text, escRegex(`${name}.horseCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.HORSE)).length`);
+    text = replace(text, escRegex(`${name}.kangaCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.KANGAROO)).length`);
+    text = replace(text, escRegex(`${name}.lizardCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.LIZARD)).length`);
+    text = replace(text, escRegex(`${name}.normalCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.HUMAN)).length`);
+    text = replace(text, escRegex(`${name}.tentacleCocks()`), `${name}.body.cocks.filter(Cock.FilterType(CockType.TENTACLE)).length`);
     // Unused - findFirstCockType()
     // Unused - addHorseCock()
-    text = text.replace(escRegex(`${name}.cockTotal()`), `${name}.body.cocks.length`);
-    text = text.replace(escRegex(`${name}.totalCocks()`), `${name}.body.cocks.length`);
-    text = text.replace(escRegex(`!${name}.hasCock()`), `${name}.body.cocks.length <= 0`);
-    text = text.replace(escRegex(`${name}.hasCock()`), `${name}.body.cocks.length > 0`);
+    text = replace(text, escRegex(`${name}.cockTotal()`), `${name}.body.cocks.length`);
+    text = replace(text, escRegex(`${name}.totalCocks()`), `${name}.body.cocks.length`);
+    text = replace(text, escRegex(`!${name}.hasCock()`), `${name}.body.cocks.length <= 0`);
+    text = replace(text, escRegex(`${name}.hasCock()`), `${name}.body.cocks.length > 0`);
     // Manual - hasSockRoom()
     // Manual - hasSock()
     // Manual - countCockSocks()
     // OK - canAutoFellate()
     // OK - canFly()
-    text = text.replace(escRegex(`!${name}.hasVagina()`), `${name}.body.vaginas.length <= 0`);
-    text = text.replace(escRegex(`${name}.hasVagina()`), `${name}.body.vaginas.length > 0`);
-    text = text.replace(escRegex(`${name}.hasVirginVagina()`), `${name}.body.vaginas.find(Vagina.Virgin)`);
+    text = replace(text, escRegex(`!${name}.hasVagina()`), `${name}.body.vaginas.length <= 0`);
+    text = replace(text, escRegex(`${name}.hasVagina()`), `${name}.body.vaginas.length > 0`);
+    text = replace(text, escRegex(`${name}.hasVirginVagina()`), `${name}.body.vaginas.find(Vagina.Virgin)`);
     // Manual - genderText
-    text = text.replace(escRegex(`${name}.manWoman()`), `manWoman(${name})`);
-    text = text.replace(escRegex(`${name}.manWoman(true)`), `manWoman(${name}, true)`);
-    text = text.replace(escRegex(`${name}.manWoman(false)`), `manWoman(${name}, false)`);
-    text = text.replace(escRegex(`${name}.guyGirl()`), `guyGirl(${name})`);
-    text = text.replace(escRegex(`${name}.guyGirl(true)`), `guyGirl(${name}, true)`);
-    text = text.replace(escRegex(`${name}.guyGirl(false)`), `guyGirl(${name}, false)`);
+    text = replace(text, escRegex(`${name}.manWoman()`), `manWoman(${name})`);
+    text = replace(text, escRegex(`${name}.manWoman(true)`), `manWoman(${name}, true)`);
+    text = replace(text, escRegex(`${name}.manWoman(false)`), `manWoman(${name}, false)`);
+    text = replace(text, escRegex(`${name}.guyGirl()`), `guyGirl(${name})`);
+    text = replace(text, escRegex(`${name}.guyGirl(true)`), `guyGirl(${name}, true)`);
+    text = replace(text, escRegex(`${name}.guyGirl(false)`), `guyGirl(${name}, false)`);
     text = funcReplacer(text, name + '.mfn(', ')', (match, gender, male, female) => `mfn(${name}, ${gender}, ${male}, ${female})`);
     text = funcReplacer(text, name + '.mf(', ')', (match, male, female) => `mf(${name}, ${male}, ${female})`);
-    text = text.replace(escRegex(`${name}.boyGirl()`), `boyGirl(${name})`);
-    text = text.replace(escRegex(`${name}.boyGirl(true)`), `boyGirl(${name}, true)`);
-    text = text.replace(escRegex(`${name}.boyGirl(false)`), `boyGirl(${name}, false)`);
-    text = text.replace(escRegex(`${name}.heShe()`), `heShe(${name})`);
-    text = text.replace(escRegex(`${name}.heShe(true)`), `heShe(${name}, true)`);
-    text = text.replace(escRegex(`${name}.heShe(false)`), `heShe(${name}, false)`);
-    text = text.replace(escRegex(`${name}.himHer()`), `himHer(${name})`);
-    text = text.replace(escRegex(`${name}.himHer(true)`), `himHer(${name}, true)`);
-    text = text.replace(escRegex(`${name}.himHer(false)`), `himHer(${name}, false)`);
-    text = text.replace(escRegex(`${name}.maleFemale()`), `maleFemale(${name})`);
-    text = text.replace(escRegex(`${name}.maleFemale(true)`), `maleFemale(${name}, true)`);
-    text = text.replace(escRegex(`${name}.maleFemale(false)`), `maleFemale(${name}, false)`);
-    text = text.replace(escRegex(`${name}.hisHer()`), `hisHer(${name})`);
-    text = text.replace(escRegex(`${name}.hisHer(true)`), `hisHer(${name}, true)`);
-    text = text.replace(escRegex(`${name}.hisHer(false)`), `hisHer(${name}, false)`);
-    text = text.replace(escRegex(`${name}.sirMadam()`), `sirMadam(${name})`);
-    text = text.replace(escRegex(`${name}.sirMadam(true)`), `sirMadam(${name}, true)`);
-    text = text.replace(escRegex(`${name}.sirMadam(false)`), `sirMadam(${name}, false)`);
+    text = replace(text, escRegex(`${name}.boyGirl()`), `boyGirl(${name})`);
+    text = replace(text, escRegex(`${name}.boyGirl(true)`), `boyGirl(${name}, true)`);
+    text = replace(text, escRegex(`${name}.boyGirl(false)`), `boyGirl(${name}, false)`);
+    text = replace(text, escRegex(`${name}.heShe()`), `heShe(${name})`);
+    text = replace(text, escRegex(`${name}.heShe(true)`), `heShe(${name}, true)`);
+    text = replace(text, escRegex(`${name}.heShe(false)`), `heShe(${name}, false)`);
+    text = replace(text, escRegex(`${name}.himHer()`), `himHer(${name})`);
+    text = replace(text, escRegex(`${name}.himHer(true)`), `himHer(${name}, true)`);
+    text = replace(text, escRegex(`${name}.himHer(false)`), `himHer(${name}, false)`);
+    text = replace(text, escRegex(`${name}.maleFemale()`), `maleFemale(${name})`);
+    text = replace(text, escRegex(`${name}.maleFemale(true)`), `maleFemale(${name}, true)`);
+    text = replace(text, escRegex(`${name}.maleFemale(false)`), `maleFemale(${name}, false)`);
+    text = replace(text, escRegex(`${name}.hisHer()`), `hisHer(${name})`);
+    text = replace(text, escRegex(`${name}.hisHer(true)`), `hisHer(${name}, true)`);
+    text = replace(text, escRegex(`${name}.hisHer(false)`), `hisHer(${name}, false)`);
+    text = replace(text, escRegex(`${name}.sirMadam()`), `sirMadam(${name})`);
+    text = replace(text, escRegex(`${name}.sirMadam(true)`), `sirMadam(${name}, true)`);
+    text = replace(text, escRegex(`${name}.sirMadam(false)`), `sirMadam(${name}, false)`);
     text = funcReplacer(text, name + '.createCock(', ')', (match, ...args) => `${name}.body.cocks.add(new Cock(${args.join(', ')}))`);
     text = funcReplacer(text, name + '.createVagina(', ')', (match, ...args) => args.length !== 3 ? match : `${name}.body.vaginas.add(new Vagina(${args[1]}, ${args[2]}, ${args[0]}))`);
     // Manual - createVagina(virgin, vaginalWetness)
     // Manual - createVagina(virgin)
-    text = text.replace(escRegex(`${name}.createVagina()`), `${name}.body.vaginas.add(new Vagina())`);
+    text = replace(text, escRegex(`${name}.createVagina()`), `${name}.body.vaginas.add(new Vagina())`);
     // Manual - createBreastRow(size, nipplesPerBreast)
     text = funcReplacer(text, name + '.createBreastRow(', ')', (match, ...args) => `${name}.body.chest.add(new BreastRow(${args.join(', ')}))`);
-    text = text.replace(escRegex(`${name}.createBreastRow()`), `${name}.body.chest.add(new BreastRow())`);
+    text = replace(text, escRegex(`${name}.createBreastRow()`), `${name}.body.chest.add(new BreastRow())`);
     // Remove - genderCheck
-    text = text.replace(escRegex(`${name}.genderCheck(); `), '');
+    text = replace(text, escRegex(`${name}.genderCheck(); `), '');
     text = funcReplacer(text, name + '.removeCock(', ')',
         (match, index, amt) => amt === '1' ?
             `${name}.body.cocks.remove(${index})` :
@@ -1207,7 +1228,7 @@ function fixCreatureClass(text: string, name: string): string {
             trimLeft`for (let vagIndex = 0; vagIndex < ${amt}; vagIndex++)
                 ${name}.body.vaginas.remove(${index} + vagIndex)`
     );
-    text = text.replace(escRegex(`${name}.removeVagina()`), `${name}.body.vaginas.remove(0)`);
+    text = replace(text, escRegex(`${name}.removeVagina()`), `${name}.body.vaginas.remove(0)`);
     text = funcReplacer(text, name + '.removeBreastRow(', ')',
         (match, index, amt) => amt === '1' ?
             `${name}.body.chest.remove(${index})` :
@@ -1217,71 +1238,71 @@ function fixCreatureClass(text: string, name: string): string {
     // Remove - fixFuckingCockTypesEnum
     text = funcReplacer(text, name + '.buttChangeNoDisplay(', ')', (match, amt) => `stretchButt(${name}, ${amt})`);
     text = funcReplacer(text, name + '.cuntChangeNoDisplay(', ')', (match, amt) => `stretchVagina(${name}, ${amt})`);
-    text = text.replace(escRegex(`${name}.inHeat`), `${name}.effects.has(StatusEffectType.Heat)`);
-    text = text.replace(escRegex(`${name}.inRut`), `${name}.effects.has(StatusEffectType.Rut)`);
+    text = replace(text, escRegex(`${name}.inHeat`), `${name}.effects.has(EffectType.Heat)`);
+    text = replace(text, escRegex(`${name}.inRut`), `${name}.effects.has(EffectType.Rut)`);
     // OK - bonusFertility
     // OK - totalFertility
-    text = text.replace(escRegex(`${name}.isBiped()`), `${name}.body.legs.isBiped()`);
-    text = text.replace(escRegex(`${name}.isNaga()`), `${name}.body.legs.isNaga()`);
-    text = text.replace(escRegex(`${name}.isTaur()`), `${name}.body.legs.isTaur()`);
-    text = text.replace(escRegex(`${name}.isDrider()`), `${name}.body.legs.isDrider()`);
-    text = text.replace(escRegex(`${name}.isGoo()`), `${name}.body.legs.isGoo()`);
-    text = text.replace(escRegex(`${name}.legs()`), `describeLegs(${name})`);
-    text = text.replace(escRegex(`${name}.skinFurScales()`), `skinFurScales(${name})`);
-    text = text.replace(escRegex(`${name}.leg()`), `describeLeg(${name})`);
-    text = text.replace(escRegex(`${name}.feet()`), `describeFeet(${name})`);
-    text = text.replace(escRegex(`${name}.foot()`), `describeFoot(${name})`);
+    text = replace(text, escRegex(`${name}.isBiped()`), `${name}.body.legs.isBiped()`);
+    text = replace(text, escRegex(`${name}.isNaga()`), `${name}.body.legs.isNaga()`);
+    text = replace(text, escRegex(`${name}.isTaur()`), `${name}.body.legs.isTaur()`);
+    text = replace(text, escRegex(`${name}.isDrider()`), `${name}.body.legs.isDrider()`);
+    text = replace(text, escRegex(`${name}.isGoo()`), `${name}.body.legs.isGoo()`);
+    text = replace(text, escRegex(`${name}.legs()`), `describeLegs(${name})`);
+    text = replace(text, escRegex(`${name}.skinFurScales()`), `skinFurScales(${name})`);
+    text = replace(text, escRegex(`${name}.leg()`), `describeLeg(${name})`);
+    text = replace(text, escRegex(`${name}.feet()`), `describeFeet(${name})`);
+    text = replace(text, escRegex(`${name}.foot()`), `describeFoot(${name})`);
     // Manual - canOvipositSpider
     // Manual - canOvipositBee
-    text = text.replace(escRegex(`${name}.canOviposit()`), `${name}.body.ovipositor.canOviposit()`);
-    text = text.replace(escRegex(`${name}.eggs()`), `${name}.body.ovipositor.eggs`);
+    text = replace(text, escRegex(`${name}.canOviposit()`), `${name}.body.ovipositor.canOviposit()`);
+    text = replace(text, escRegex(`${name}.eggs()`), `${name}.body.ovipositor.eggs`);
     // Unused - addEggs
-    text = text.replace(escRegex(`${name}.dumpEggs()`), `${name}.body.ovipositor.dumpEggs()`);
-    text = text.replace(escRegex(`${name}.dumpEggs()`), `${name}.body.ovipositor.dumpEggs()`);
+    text = replace(text, escRegex(`${name}.dumpEggs()`), `${name}.body.ovipositor.dumpEggs()`);
+    text = replace(text, escRegex(`${name}.dumpEggs()`), `${name}.body.ovipositor.dumpEggs()`);
     // Unused - setEggs
-    text = text.replace(escRegex(`${name}.fertilizedEggs()`), `${name}.body.ovipositor.fertilizedEggs`);
-    text = text.replace(escRegex(`${name}.fertilizeEggs()`), `${name}.body.ovipositor.fertilizeEggs()`);
+    text = replace(text, escRegex(`${name}.fertilizedEggs()`), `${name}.body.ovipositor.fertilizedEggs`);
+    text = replace(text, escRegex(`${name}.fertilizeEggs()`), `${name}.body.ovipositor.fertilizeEggs()`);
     text = funcReplacer(text, name + '.breastCup(', ')', (match, index) => `breastCup(${name}.body.chest.get(${index}))`);
-    text = text.replace(escRegex(`${name}.bRows()`), `${name}.body.chest.length`);
-    text = text.replace(escRegex(`${name}.totalBreasts()`), `${name}.body.chest.reduce(BreastRow.TotalBreasts, 0)`);
-    text = text.replace(escRegex(`${name}.totalNipples()`), `${name}.body.chest.reduce(BreastRow.TotalNipples, 0)`);
-    text = text.replace(escRegex(`${name}.smallestTitSize()`), `${name}.body.chest.sort(BreastRow.Smallest).get(0).rating`);
-    text = text.replace(escRegex(`${name}.smallestTitRow()`), `${name}.body.chest.sort(BreastRow.Smallest).get(0)`);
-    text = text.replace(escRegex(`${name}.biggestTitRow()`), `${name}.body.chest.sort(BreastRow.Biggest).get(0)`);
-    text = text.replace(escRegex(`${name}.averageBreastSize()`), `${name}.body.chest.reduce(BreastRow.AverageSize, 0)`);
-    text = text.replace(escRegex(`${name}.averageCockThickness()`), `${name}.body.cocks.reduce(Cock.AverageThickness, 0)`);
-    text = text.replace(escRegex(`${name}.averageNippleLength()`), `${name}.body.chest.reduce(BreastRow.AverageNippleLength, 0)`);
-    text = text.replace(escRegex(`${name}.averageVaginalLooseness()`), `${name}.body.vaginas.reduce(Vagina.AverageLooseness, 0)`);
-    text = text.replace(escRegex(`${name}.averageVaginalWetness()`), `${name}.body.vaginas.reduce(Vagina.AverageWetness, 0)`);
-    text = text.replace(escRegex(`${name}.averageCockLength()`), `${name}.body.cock.reduce(Cock.AverageLength, 0)`);
-    text = text.replace(escRegex(`${name}.canTitFuck()`), `${name}.body.chest.find(BreastRow.Fuckable)`);
-    text = text.replace(escRegex(`${name}.mostBreastsPerRow()`), `${name}.body.chest.sort(BreastRow.BreastsPerRowMost).get(0).count`);
-    text = text.replace(escRegex(`${name}.averageNipplesPerBreast()`), `${name}.body.chest.reduce(BreastRow.AverageNipplesPerBreast, 0)`);
-    text = text.replace(escRegex(`${name}.allBreastsDescript()`), `describeAllBreasts(${name})`);
-    text = text.replace(escRegex(`${name}.sMultiCockDesc()`), `describeOneOfYourCocks(${name})`);
-    text = text.replace(escRegex(`${name}.SMultiCockDesc()`), `describeOneOfYourCocksCap(${name})`);
-    text = text.replace(escRegex(`${name}.oMultiCockDesc()`), `describeEachOfYourCocks(${name})`);
-    text = text.replace(escRegex(`${name}.OMultiCockDesc()`), `describeEachOfYourCocksCap(${name})`);
-    text = text.replace(escRegex(`${name}.cockMultiLDescriptionShort()`), `describeCocksShort(${name})`);
-    text = text.replace(escRegex(`${name}.hasSheath()`), `${name}.body.cocks.find(Cock.HasSheath)`);
-    text = text.replace(escRegex(`${name}.sheathDescription()`), `describeSheath(${name})`);
-    text = text.replace(escRegex(`${name}.vaginaDescript()`), `describeVagina(${name}, ${name}.body.vaginas.get(0))`);
+    text = replace(text, escRegex(`${name}.bRows()`), `${name}.body.chest.length`);
+    text = replace(text, escRegex(`${name}.totalBreasts()`), `${name}.body.chest.reduce(BreastRow.TotalBreasts, 0)`);
+    text = replace(text, escRegex(`${name}.totalNipples()`), `${name}.body.chest.reduce(BreastRow.TotalNipples, 0)`);
+    text = replace(text, escRegex(`${name}.smallestTitSize()`), `${name}.body.chest.sort(BreastRow.Smallest).get(0).rating`);
+    text = replace(text, escRegex(`${name}.smallestTitRow()`), `${name}.body.chest.sort(BreastRow.Smallest).get(0)`);
+    text = replace(text, escRegex(`${name}.biggestTitRow()`), `${name}.body.chest.sort(BreastRow.Biggest).get(0)`);
+    text = replace(text, escRegex(`${name}.averageBreastSize()`), `${name}.body.chest.reduce(BreastRow.AverageSize, 0)`);
+    text = replace(text, escRegex(`${name}.averageCockThickness()`), `${name}.body.cocks.reduce(Cock.AverageThickness, 0)`);
+    text = replace(text, escRegex(`${name}.averageNippleLength()`), `${name}.body.chest.reduce(BreastRow.AverageNippleLength, 0)`);
+    text = replace(text, escRegex(`${name}.averageVaginalLooseness()`), `${name}.body.vaginas.reduce(Vagina.AverageLooseness, 0)`);
+    text = replace(text, escRegex(`${name}.averageVaginalWetness()`), `${name}.body.vaginas.reduce(Vagina.AverageWetness, 0)`);
+    text = replace(text, escRegex(`${name}.averageCockLength()`), `${name}.body.cocks.reduce(Cock.AverageLength, 0)`);
+    text = replace(text, escRegex(`${name}.canTitFuck()`), `${name}.body.chest.find(BreastRow.CanTitFuck)`);
+    text = replace(text, escRegex(`${name}.mostBreastsPerRow()`), `${name}.body.chest.sort(BreastRow.BreastsPerRowMost).get(0).count`);
+    text = replace(text, escRegex(`${name}.averageNipplesPerBreast()`), `${name}.body.chest.reduce(BreastRow.AverageNipplesPerBreast, 0)`);
+    text = replace(text, escRegex(`${name}.allBreastsDescript()`), `describeAllBreasts(${name})`);
+    text = replace(text, escRegex(`${name}.sMultiCockDesc()`), `describeOneOfYourCocks(${name})`);
+    text = replace(text, escRegex(`${name}.SMultiCockDesc()`), `describeOneOfYourCocksCap(${name})`);
+    text = replace(text, escRegex(`${name}.oMultiCockDesc()`), `describeEachOfYourCocks(${name})`);
+    text = replace(text, escRegex(`${name}.OMultiCockDesc()`), `describeEachOfYourCocksCap(${name})`);
+    text = replace(text, escRegex(`${name}.cockMultiLDescriptionShort()`), `describeCocksShort(${name})`);
+    text = replace(text, escRegex(`${name}.hasSheath()`), `${name}.body.cocks.find(Cock.HasSheath)`);
+    text = replace(text, escRegex(`${name}.sheathDescription()`), `describeCockSheath(${name})`);
+    text = replace(text, escRegex(`${name}.vaginaDescript()`), `describeVagina(${name}, ${name}.body.vaginas.get(0))`);
     text = funcReplacer(text, name + '.vaginaDescript(', ')', (match, index) => `describeVagina(${name}, ${name}.body.vaginas.get(${index}))`);
     text = funcReplacer(text, name + '.nippleDescript(', ')', (match, index) => `describeNipple(${name}, ${name}.body.chest.get(${index}))`);
-    text = text.replace(escRegex(`${name}.chestDesc()`), `describeChest(${name})`);
-    text = text.replace(escRegex(`${name}.allChestDesc()`), `describeEntireChest(${name})`);
-    text = text.replace(escRegex(`${name}.clitDescript()`), `describeClit(${name})`);
-    text = text.replace(escRegex(`${name}.cockHead()`), `describeCockHead(${name}.body.cocks.get(0))`);
+    text = replace(text, escRegex(`${name}.chestDesc()`), `describeChest(${name})`);
+    text = replace(text, escRegex(`${name}.allChestDesc()`), `describeAllChest(${name})`);
+    text = replace(text, escRegex(`${name}.clitDescript()`), `describeClit(${name})`);
+    text = replace(text, escRegex(`${name}.cockHead()`), `describeCockHead(${name}.body.cocks.get(0))`);
     text = funcReplacer(text, name + '.cockHead(', ')', (match, index) => `describeCockHead(${name}.body.cocks.get(${index}))`);
-    text = text.replace(escRegex(`${name}.cockDescriptShort()`), `describeCockShort(${name}.body.cocks.get(0))`);
+    text = replace(text, escRegex(`${name}.cockDescriptShort()`), `describeCockShort(${name}.body.cocks.get(0))`);
     text = funcReplacer(text, name + '.cockDescriptShort(', ')', (match, index) => `describeCockShort(${name}.body.cocks.get(${index}))`);
-    text = text.replace(escRegex(`${name}.assholeOrPussy()`), `assholeOrPussy(${name})`);
-    text = text.replace(escRegex(`${name}.multiCockDescriptLight()`), `describeCocksLight(${name})`);
-    text = text.replace(escRegex(`${name}.multiCockDescript()`), `describeCocks(${name})`);
-    text = text.replace(escRegex(`${name}.ballsDescriptLight()`), `describeBalls(true, true, ${name})`);
-    text = text.replace(escRegex(`${name}.ballsDescriptLight(true)`), `describeBalls(true, true, ${name})`);
-    text = text.replace(escRegex(`${name}.ballsDescriptLight(false)`), `describeBalls(false, true, ${name})`);
-    text = text.replace(escRegex(`${name}.sackDescript()`), `describeBallsack(${name})`);
+    text = replace(text, escRegex(`${name}.assholeOrPussy()`), `assholeOrPussy(${name})`);
+    text = replace(text, escRegex(`${name}.multiCockDescriptLight()`), `describeCocksLight(${name})`);
+    text = replace(text, escRegex(`${name}.multiCockDescript()`), `describeCocks(${name})`);
+    text = replace(text, escRegex(`${name}.ballsDescriptLight()`), `describeBalls(true, true, ${name})`);
+    text = replace(text, escRegex(`${name}.ballsDescriptLight(true)`), `describeBalls(true, true, ${name})`);
+    text = replace(text, escRegex(`${name}.ballsDescriptLight(false)`), `describeBalls(false, true, ${name})`);
+    text = replace(text, escRegex(`${name}.sackDescript()`), `describeSack(${name})`);
     text = funcReplacer(text, name + '.breastDescript(', ')', (match, index) => `describeBreastRow(${name}.body.chest.get(${index}))`);
     text = funcReplacer(text, name + '.breastSize(', ')', (match, size) => `describeBreastRowRating(${size})`);
     return text;
