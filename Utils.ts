@@ -89,20 +89,23 @@ export function funcReplacer(text: string, start: string | RegExp, end: string |
         startMatch = textStream.match(startRegex);
         if (startMatch && startMatch.index !== undefined && startMatch.length > 0) {
             startMatchStr = startMatch.shift()!;
-            if (startMatchStr.split('\n').length > 1) console.log("Start", start, end, startMatchStr);
+            if (startMatchStr.split('\n').length > 1)
+                console.error('Warning: Large match\nFunction Match:', start, end, '\nStart Match:', startMatchStr);
             startPos = textStream.pos + startMatch.index;
             textStream.pos += startMatch.index + startMatchStr.length;
 
             argsMatch = getArgs(textStream);
             if (argsMatch !== undefined && argsMatch.length > 0) {
                 argsMatchStr = argsMatch.shift()!;
-                if (argsMatchStr.split('\n').length > 1) console.log("Args", start, end, argsMatchStr);
+                if (argsMatchStr.split('\n').length > 1)
+                    console.error('Warning: Large match\nFunction Match:', start, end, '\nArgs Match:', argsMatchStr);
                 textStream.pos += argsMatchStr.length;
 
                 endMatch = textStream.match(endRegex);
                 if (endMatch && endMatch.index !== undefined && endMatch.length > 0) {
                     endMatchStr = endMatch.shift()!;
-                    if (endMatchStr.split('\n').length > 1) console.log("End", start, end, endMatchStr);
+                    if (endMatchStr.split('\n').length > 1)
+                        console.error('Warning: Large match\nFunction Match:', start, end, '\nEnd Match:', endMatchStr);
                     textStream.pos += endMatch.index + endMatchStr.length;
 
                     replaceStr = callback.apply(undefined, [startMatchStr + argsMatchStr + endMatchStr, ...[...startMatch, ...argsMatch, ...endMatch]]);
