@@ -1,7 +1,7 @@
 import { readdir, PathLike, stat, writeFileSync, readFileSync, renameSync } from 'fs';
 import { fixText } from './Converter';
 
-function walk(dir: PathLike, modify: (file: string) => void, done: (err: NodeJS.ErrnoException, res?: string[]) => void) {
+export function walk(dir: PathLike, modify: (file: string) => void, done: (err: NodeJS.ErrnoException, res?: string[]) => void) {
     let results: string[] = [];
     readdir(dir, (err, list) => {
         if (err) return done(err);

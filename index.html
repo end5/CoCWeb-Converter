@@ -5,7 +5,12 @@
 <head>
     <meta charset="utf-8" />
     <title></title>
-    <script src='./Page.ts' defer></script>
+    <script>
+        var require = {
+            baseUrl: "Build"
+        };
+    </script>
+    <script src="Build/require.js" data-main="Page"></script>
 </head>
 
 <body>
