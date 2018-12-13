@@ -5,7 +5,7 @@ type ReplaceFunc = (match: string, ...args: string[]) => string;
 function check(searchValue: string | RegExp, strOrFunc: string | ReplaceFunc) {
     return (match: string, ...args: string[]) => {
         if (match.split('\n').length > 1)
-            console.log(searchValue, match);
+            console.error('Warning: Large match\nSearch Value: ' + searchValue + '\n' + match);
 
         if (typeof strOrFunc === 'string')
             return strOrFunc;
@@ -553,7 +553,7 @@ function fixBaseContent(text: string, className?: string): string {
                 return quoteText.replace(/images\.showImage\(\"([^\"]+)\"\)/, 'CView.image("$1");');
             }
             if (flag === 'true') {
-                fixed += '.clear()';
+                fixed += '.clear();\nCView';
             }
             if (quoteText !== '""') {
                 fixed += `.text(${quoteText})`;
@@ -754,11 +754,11 @@ function fixPlayerClass(text: string): string {
     text = replace(text, escRegex('player.teaseLevel'), 'player.stats.teaseLevel');
     text = replace(text, escRegex('player.teaseXP'), 'player.stats.teaseXP');
     text = replace(text, escRegex('player.perkPoints'), 'player.stats.perkPoints');
-    text = replace(text, escRegex('player.explored'), 'ExplorationFlags.BEYOND_CAMP');
     text = replace(text, escRegex('player.exploredForest'), 'ExplorationFlags.FOREST');
     text = replace(text, escRegex('player.exploredDesert'), 'ExplorationFlags.DESERT');
     text = replace(text, escRegex('player.exploredMountain'), 'ExplorationFlags.MOUNTAIN');
     text = replace(text, escRegex('player.exploredLake'), 'ExplorationFlags.LAKE');
+    text = replace(text, escRegex('player.explored'), 'ExplorationFlags.BEYOND_CAMP');
     // Unused - pregnancyUpdate
     // Manual - itemSlot[1-5]
     text = replace(text, escRegex('player.modArmorName'), 'player.inventory.modifiedArmorDesc');

@@ -105,7 +105,7 @@ export function funcReplacer(text: string, start: string | RegExp, end: string |
                     if (endMatchStr.split('\n').length > 1) console.log("End", start, end, endMatchStr);
                     textStream.pos += endMatch.index + endMatchStr.length;
 
-                    replaceStr = callback.apply(undefined, [startMatchStr + argsMatchStr + endMatchStr].concat(startMatch, argsMatch, endMatch)) as string;
+                    replaceStr = callback.apply(undefined, [startMatchStr + argsMatchStr + endMatchStr, ...[...startMatch, ...argsMatch, ...endMatch]]);
 
                     const offset = startMatchStr.length + argsMatchStr.length + endMatchStr.length;
 
