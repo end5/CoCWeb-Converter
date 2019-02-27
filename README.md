@@ -7,7 +7,5 @@ Setup instructions:
 1. Clone this repo
 2. Download and install Node.js https://nodejs.org/
 3. Open a console.
-4. Type "npm install -g typescript" to install Typescript
-5. Once Typescript is installed, type "tsc -p tsconfig.json" to compile the code.
-6. Download RequireJS https://requirejs.org and move the file to the "Build" folder.
-7. Open index.html. Paste code on the left text area. Copy converted code from right text area.
+4. Type "npm install" to install everything
+5. Open index.html. Paste code on the left text area. Copy converted code from right text area.

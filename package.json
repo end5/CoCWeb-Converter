@@ -1,0 +1,26 @@
+{
+  "name": "coc-web-converter",
+  "version": "1.0.0",
+  "description": "Helps convert code from Corruption of Champions Actionscript to Typescript\r When converting, check the browser console for any warnings or errors.",
+  "main": "index.js",
+  "dependencies": {
+    "requirejs": "^2.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^11.9.5",
+    "typescript": "^3.3.3333"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/end5/CoC-Web-Converter.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/end5/CoC-Web-Converter/issues"
+  },
+  "homepage": "https://github.com/end5/CoC-Web-Converter#readme"
+}

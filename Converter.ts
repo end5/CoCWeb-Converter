@@ -294,7 +294,7 @@ export function fixText(text: string): string {
     text = fixInventory(text);
 
     // Special post cases
-    text = replace(text, /player\.stats\.lus=/g, (match, p1) => `player.stats.lustNoResist${p1}`);
+    text = replace(text, /player\.stats\.lus=/g, (match, p1) => `player.stats.raw.lust${p1}`);
     text = replace(text, /player\.stats\.lus([^t])/g, (match, p1) => `player.stats.lust${p1}`);
     text = replace(text, /player\.stats\.sen([^s])/g, (match, p1) => `player.stats.sens${p1}`);
     text = replace(text, escRegex('player.butt'), 'player.body.butt');
@@ -700,9 +700,9 @@ function fixMonsterClass(text: string): string {
     text = replace(text, escRegex('monster.long'), 'monster.desc.long');
     text = replace(text, escRegex('monster.plural'), 'monster.desc.plural');
     text = replace(text, escRegex('monster.lustVuln'), 'monster.stats.lustVuln');
-    text = replace(text, /monster\.[pP]rnoun1/g, 'monster.desc.subjectivePronoun');
-    text = replace(text, /monster\.[pP]rnoun2/g, 'monster.desc.objectivePronoun');
-    text = replace(text, /monster\.[pP]rnoun3/g, 'monster.desc.possessivePronoun');
+    text = replace(text, /monster\.[pP]ronoun1/g, 'monster.desc.subjectivePronoun');
+    text = replace(text, /monster\.[pP]ronoun2/g, 'monster.desc.objectivePronoun');
+    text = replace(text, /monster\.[pP]ronoun3/g, 'monster.desc.possessivePronoun');
     text = replace(text, escRegex('monster.drop'), 'monster.combat.rewards.drop');
     text = replace(text, escRegex('monster.eMaxHP'), 'monster.desc.long');
     text = replace(text, escRegex('monster.addHP'), 'monster.combat.gainHP');
@@ -730,16 +730,16 @@ function fixMonsterClass(text: string): string {
 
     text = funcReplacer(text, 'initStrTouSpeInte(', ');',
         (match, str, tou, spe, int) =>
-            trimLeft`this.stats.base.str.value = ${str};
-            this.stats.base.tou.value = ${tou};
-            this.stats.base.spe.value = ${spe};
-            this.stats.base.int.value = ${int};`
+            trimLeft`this.stats.str = ${str};
+            this.stats.tou = ${tou};
+            this.stats.spe = ${spe};
+            this.stats.int = ${int};`
     );
     text = funcReplacer(text, 'initLibSensCor(', ');',
         (match, lib, sens, cor) =>
-            trimLeft`this.stats.base.lib.value = ${lib};
-            this.stats.base.sens.value = ${sens};
-            this.stats.base.cor.value = ${cor};`
+            trimLeft`this.stats.lib = ${lib};
+            this.stats.sens = ${sens};
+            this.stats.cor = ${cor};`
     );
     text = funcReplacer(text, 'createBreastRow(', ')', (match, ...args) => `this.body.chest.add(new BreastRow(${args.join(', ')}))`);
     text = replace(text, escRegex('createBreastRow()'), 'this.body.chest.add(new BreastRow())');
@@ -849,6 +849,7 @@ function fixPlayerClass(text: string): string {
 
 function fixCharacterClass(text: string): string {
     text = replace(text, escRegex('player.feminity'), 'player.body.femininity');
+    text = replace(text, escRegex('player.femininity'), 'player.body.femininity');
     text = replace(text, escRegex('player.beardLength'), 'player.body.beard.length');
     text = replace(text, escRegex('player.beardStyle'), 'player.body.beard.style');
     text = replace(text, escRegex('player.thickness'), 'player.body.thickness');
