@@ -1,7 +1,7 @@
 {
     "compilerOptions": {
         "target": "es6",
-        "module": "amd",
+        "module": "commonjs",
         "sourceMap": true,
         "outDir": "Build",
         "strict": true,
@@ -9,7 +9,11 @@
         "forceConsistentCasingInFileNames": true,
         "noImplicitReturns": true,
     },
+    "include": [
+        "src"
+    ],
     "exclude": [
         "Build",
+        "tests"
     ]
 }

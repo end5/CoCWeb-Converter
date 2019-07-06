@@ -543,7 +543,8 @@ function fixBaseContent(text: string, className?: string): string {
     text = replace(text, escRegex('hideUpDown()'), '');
     text = replace(text, escRegex('createCallBackFunction'), 'choiceWrap');
     text = replace(text, escRegex('createCallBackFunction2'), 'choiceWrap');
-    text = replace(text, escRegex('startCombat('), 'return CombatManager.beginBattle(player, ');
+    text = replace(text, escRegex('startCombat('), 'return CombatManager.beginBattle(new Encounter(player, ');
+    text = funcReplacer(text, 'startCombat(', ');', (match, ...args) => 'return CombatManager.beginBattle(new Encounter(player, ' + args.join(', ') + '));');
     // Manual - startCombatImmediate
     // Unused - rawOutputText
     text = funcReplacer(text, 'outputText(', ');',
@@ -573,10 +574,7 @@ function fixBaseContent(text: string, className?: string): string {
         /(?:choices|simpleChoices)\(/, ')',
         (match, ...choices) =>
             'return { choices: [ ' +
-            choices.reduce(
-                (prev, curr, index) =>
-                    prev + (index % 2 === 0 ? `[${curr}, ` : `${curr}], `),
-                '') +
+            choices.map((curr, index) => (index % 2 === 0 ? `[${curr}` : `${curr}]`)).join(', ') +
             ' ] }'
     );
     text = funcReplacer(text, 'doYesNo(', ');', (match, choice1, choice2) => `return { yes: ${choice1}, no: ${choice2} };`);
@@ -643,7 +641,7 @@ function fixBaseContent(text: string, className?: string): string {
             }, '');
         }
     );
-    text = replace(text, escRegex('silly()'), 'Settings.silly()');
+    text = replace(text, escRegex('silly()'), 'Settings.sillyMode');
     text = funcReplacer(text, 'HPChange(', ')',
         (match, amt, display) =>
             display === 'true' || display !== 'false' ?
