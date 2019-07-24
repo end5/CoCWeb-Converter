@@ -15,7 +15,7 @@
         "typescript": "^3.5.1"
     },
     "scripts": {
-        "test": "ts-node src/tsmorph/Run Transform.ts"
+        "test": "ts-node src/tsmorph/RunTransform.ts"
     },
     "repository": {
         "type": "git",
