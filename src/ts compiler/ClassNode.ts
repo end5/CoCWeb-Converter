@@ -1,20 +1,12 @@
 import * as ts from "typescript";
-import { doesExtend, addLeadingComments, addTrailingComments, doesImplement, hasName, hasIdentifier } from "../Utils";
-import { convertMethod, convertMethodToFunction } from "./MethodNode";
+import { doesExtend, addLeadingComments, addTrailingComments, doesImplement, hasName, addComments } from "./Utils";
+import { fixMethodNode, convertMethodToFunction } from "./MethodNode";
+import { ConvertState } from "./ConvertState";
 
-export interface ClassInfo {
-    requiresPlayer: ts.ClassElement[];
-}
-
-export function convertClassNode(sourceFile: ts.SourceFile, node: ts.ClassDeclaration, context: ts.TransformationContext) {
-
-    const info: ClassInfo = {
-        requiresPlayer: node.members.filter((member) => hasIdentifier(member, 'player'))
-    };
+export function fixClassNode(node: ts.ClassDeclaration, context: ts.TransformationContext, info: ConvertState) {
 
     let extendsBaseContent = false;
     let implementsTimeAware = false;
-    // let constructorNode;
 
     if (node.heritageClauses) {
         for (const heritageNode of node.heritageClauses) {
@@ -34,29 +26,27 @@ export function convertClassNode(sourceFile: ts.SourceFile, node: ts.ClassDeclar
             const memberNodes: ts.ClassElement[] = [];
             const externalNodes: ts.FunctionDeclaration[] = [];
 
-            let member;
             for (let index = 0; index < node.members.length; index++) {
-                member = node.members[index];
+                const member = node.members[index];
                 if (ts.isPropertyDeclaration(member)) {
                     memberNodes.push(member);
 
                 }
                 else if (ts.isMethodDeclaration(member)) {
                     if (implementsTimeAware && (hasName(member.name, 'timeChange') || hasName(member.name, 'timeChangeLarge'))) {
-                        memberNodes.push(convertMethod(member, context, info));
+                        memberNodes.push(fixMethodNode(member, context, info));
                     }
                     else {
                         // Convert Method to Function
-                        const convertedNode = convertMethodToFunction(convertMethod(member, context, info));
+                        const convertedNode = convertMethodToFunction(fixMethodNode(member, context, info));
 
                         if (index === 0)
-                            addLeadingComments(sourceFile.text, node, convertedNode);
+                            addLeadingComments(info.sourceFile.text, node, convertedNode);
 
-                        addLeadingComments(sourceFile.text, member, convertedNode);
-                        addTrailingComments(sourceFile.text, member, convertedNode);
+                        addComments(info.sourceFile.text, member, convertedNode);
 
                         if (index === node.members.length - 1)
-                            addTrailingComments(sourceFile.text, node, convertedNode);
+                            addTrailingComments(info.sourceFile.text, node, convertedNode);
 
                         externalNodes.push(convertedNode);
                     }

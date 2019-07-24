@@ -1,4 +1,4 @@
-import { StringStream } from "./StringStream";
+import { StringStream } from "../tsmorph/Lexer/StringStream";
 
 export function trimLeft(strings: TemplateStringsArray, ...values: any[]) {
     return strings.reduce((prev, curr, index) => prev + curr.trimLeft() + (values[index] || ''), '');
@@ -120,5 +120,5 @@ export function funcReplacer(text: string, start: string | RegExp, end: string |
         }
     } while (!textStream.eos() && startMatch);
 
-    return textStream.string();
+    return textStream.text();
 }

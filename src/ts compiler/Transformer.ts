@@ -1,11 +1,19 @@
 import * as ts from "typescript";
-import { convertClassNode } from "./Convert/ClassNode";
+import { fixClassNode } from "./ClassNode";
+import { infoScan } from "./InfoScan";
+import { fixFunctionNode } from "./FunctionNode";
 
 export function transformer(context: ts.TransformationContext) {
     return (rootNode: ts.SourceFile) => {
+        const info = infoScan(rootNode);
+
         function visit(node: ts.Node) {
             if (ts.isClassDeclaration(node)) {
-                return convertClassNode(rootNode, node, context);
+                return fixClassNode(node, context, info);
+            }
+
+            if (ts.isFunctionDeclaration(node)) {
+                node = fixFunctionNode(node, context, info);
             }
             return node;
         }

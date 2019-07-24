@@ -6,14 +6,10 @@ export class StringStream {
         this.str = str;
     }
 
-    private advStream(amount: number = 0) {
-        this.pos += +amount;
-    }
-
     /**
-     * Returns true only if the stream is at the end of the string.
+     * Retruns the text.
      */
-    public string(): string {
+    public text(): string {
         return this.str;
     }
 
@@ -28,39 +24,50 @@ export class StringStream {
      * Returns the next character in the stream without advancing it. Returns undefined when at end of file
      */
     public peek(): string {
-        return this.str[this.pos];
-    }
-
-    /**
-     * Returns the next character in the stream and advances it. Returns undefined when at end of string
-     */
-    public next(): string | undefined {
-        if (!this.eos()) {
-            const char = this.str[this.pos];
-            this.advStream();
-            return char;
-        }
-        return;
+        return this.str.charAt(this.pos);
     }
 
     /**
      * If the next character in the stream 'matches' the given argument, it is consumed and returned.
      * Otherwise, undefined is returned.
-     * @param match A character or regular expression
+     * @param match A character
      */
-    public eat(match: string | RegExp): string | undefined {
-        if (match instanceof RegExp && match.test(this.str[this.pos])) return this.next();
-        else if (this.str[this.pos] === match) return this.next();
+    public eat(match: string): string | undefined {
+        if (this.str.charAt(this.pos) === match) return this.str.charAt(this.pos++);
         return;
     }
 
     /**
-     * Repeatedly calls eat with the given argument, until it fails. Returns true if any characters were eaten.
-     * @param match A character or regular expression
+     * Repeatedly eats characters that do not match the given characters. Returns true if any characters were eaten.
+     * @param notChars Characters that do not match the string
      */
-    public eatWhile(match: string | RegExp): boolean {
+    public eatWhileNot(...notChars: string[]): boolean {
         const startPos = this.pos;
-        while (this.eat(match)) { }
+        let index = startPos;
+        let matchFound = false;
+
+        for (const char of notChars) {
+            index = this.str.indexOf(char, startPos);
+
+            // Match was found
+            if (index > -1) {
+                matchFound = true;
+                // char found at start position
+                // cannnot progress
+                if (index === startPos) {
+                    this.pos = startPos;
+                    break;
+                }
+                // Match found at farther position
+                if (this.pos > index || this.pos === startPos)
+                    this.pos = index;
+            }
+        }
+
+        // Nothing matched so the rest of the string is ok
+        if (!matchFound)
+            this.pos = this.str.length;
+
         return this.pos > startPos;
     }
 

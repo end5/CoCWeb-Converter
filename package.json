@@ -1,18 +1,21 @@
 {
     "name": "coc-web-converter",
     "version": "1.0.0",
-    "description": "Helps convert code from Corruption of Champions Actionscript to Typescript\r When converting, check the browser console for any warnings or errors.",
+    "description": "Helps convert code from Corruption of Champions AS3 to Typescript\r When converting, check the browser console for any warnings or errors.",
     "main": "index.js",
     "dependencies": {
+        "@types/walk": "^2.3.0",
         "D": "^1.0.0",
-        "ts-node": "^8.3.0"
+        "ts-morph": "^3.1.1",
+        "ts-node": "^8.3.0",
+        "walk": "^2.3.14"
     },
     "devDependencies": {
         "@types/node": "^11.13.13",
         "typescript": "^3.5.1"
     },
     "scripts": {
-        "test": "ts-node src/Run.ts"
+        "test": "ts-node src/tsmorph/Run Transform.ts"
     },
     "repository": {
         "type": "git",

@@ -46,6 +46,25 @@ export function getName(node: ts.ClassElement) {
     return node.name.text;
 }
 
+export function getName2(node: ts.Declaration | ts.Expression) {
+    const nameNode = ts.getNameOfDeclaration(node);
+    if (!nameNode)
+        return;
+    if (ts.isArrayBindingPattern(nameNode))
+        throw new Error('Tried to get name of ArrayBindingPattern');
+    if (ts.isObjectBindingPattern(nameNode))
+        throw new Error('Tried to get name of ObjectBindingPattern');
+    if (ts.isComputedPropertyName(nameNode))
+        throw new Error('Tried to get name of ComputedProperty');
+    return nameNode.text;
+}
+
+export function addComments<S extends ts.Node, D extends ts.Node>(text: string, sourceNode: S, destNode: D) {
+    addLeadingComments(text, sourceNode, destNode);
+    addTrailingComments(text, sourceNode, destNode);
+    return destNode;
+}
+
 export function addLeadingComments(text: string, sourceNode: ts.Node, destNode: ts.Node) {
     const leadingComments = ts.getLeadingCommentRanges(text, sourceNode.pos);
     if (leadingComments) {
