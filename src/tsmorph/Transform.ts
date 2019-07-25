@@ -1,6 +1,30 @@
-import { SyntaxKind, MethodDeclarationStructure, TypeGuards, SourceFile } from "ts-morph";
+import { SyntaxKind, MethodDeclarationStructure, TypeGuards, SourceFile, MethodDeclaration, FunctionDeclaration, Node } from "ts-morph";
 
 const removeExtends = ["BaseContent", "Utils", "NPCAwareContent", "AbstractLakeContent", "BazaarAbstractContent", "AbstractBoatContent", "AbstractFarmContent", "TelAdreAbstractContent"];
+
+// const emptyBlockRegexp = /^{\s*}$/;
+// function isEmptyBlock(text: string) {
+//     return emptyBlockRegexp.test(text);
+// }
+
+function hasEmptyBody(node: Node) {
+    // Looking for token pattern
+    // OpenBrace - no children
+    // SyntaxList - no children
+    // CloseBrace - no children
+
+    const children = node.getChildren();
+    let index = 0;
+    while (children[index].getKind() !== SyntaxKind.OpenBraceToken)
+        index++;
+
+    if (index + 2 >= node.getChildCount())
+        return false;
+
+    return children[index].getKind() === SyntaxKind.OpenBraceToken && children[index].getChildCount() === 0 &&
+        children[index + 1].getKind() === SyntaxKind.SyntaxList && children[index + 1].getChildCount() === 0 &&
+        children[index + 2].getKind() === SyntaxKind.CloseBraceToken && children[index + 2].getChildCount() === 0;
+}
 
 // const sourceFiles = project.getSourceFiles();
 export function transform(sourceFile: SourceFile) {
@@ -26,13 +50,14 @@ export function transform(sourceFile: SourceFile) {
                 if (method.wasForgotten() || !TypeGuards.isMethodDeclaration(method))
                     continue;
 
-                let methodBody = method.getBody();
+                const methodBody = method.getBody();
 
                 console.log('  In Method ' + method.getName());
 
                 // Convert constructor
                 if (method.getName() === className) {
-                    if (!methodBody || (methodBody && methodBody.getChildCount() === 0)) {
+                    // Looking for no body or body full of whitespace
+                    if (!methodBody || (methodBody && hasEmptyBody(methodBody))) {
                         console.log('    Empty body');
                         method.remove();
                         continue;
@@ -66,30 +91,7 @@ export function transform(sourceFile: SourceFile) {
                 }
 
                 // Fix method body
-                methodBody = method.getBody();
-                if (methodBody) {
-                    const identifiers = methodBody.getDescendantsOfKind(SyntaxKind.Identifier);
-
-                    // Fix player parameter requirement
-                    let match = identifiers.find((node) => node.getText() === 'player');
-                    if (match) {
-                        console.log('    Found player');
-                        method.insertParameter(0, {
-                            name: 'player',
-                            type: 'Player'
-                        });
-                    }
-                    // Fix monster parameter requirement
-                    match = identifiers.find((node) => node.getText() === 'monster');
-                    if (match) {
-                        console.log('    Found monster');
-                        method.insertParameter(0, {
-                            name: 'monster',
-                            type: 'Monster'
-                        });
-                    }
-
-                }
+                fixBody(method);
 
                 // Convert method to function
 
@@ -106,37 +108,23 @@ export function transform(sourceFile: SourceFile) {
                     const structure = method.getStructure() as MethodDeclarationStructure;
                     console.log('    Converting to function');
                     // console.log(structure.leadingTrivia);
-                    sourceFile.addFunction({
-                        leadingTrivia: method.getLeadingCommentRanges().map((comment) => comment.getText()),
+                    const func = sourceFile.addFunction({
+                        leadingTrivia: method.getLeadingCommentRanges().map((comment) => comment.getText() + (comment.getKind() === SyntaxKind.MultiLineCommentTrivia ? '\n' : '')),
                         docs: structure.docs,
                         isExported: !structure.scope || (structure.scope && structure.scope === 'public'),
                         name: structure.name,
                         parameters: structure.parameters,
                         typeParameters: structure.typeParameters,
-                        statements: structure.statements,
                         returnType: structure.returnType,
-                        trailingTrivia: method.getTrailingCommentRanges().map((comment) => comment.getText()),
+                        trailingTrivia: method.getTrailingCommentRanges().map((comment) => comment.getText() + (comment.getKind() === SyntaxKind.MultiLineCommentTrivia ? '\n' : '')),
                     });
 
-                    // let leadingComment;
-                    // let trailingComment;
-
-                    // if (index > 0 && TypeGuards.isCommentClassElement(methods[index - 1])) {
-                    //     leadingComment = methods[index - 1];
-                    // }
-
-                    // if (index < methods.length - 1 && TypeGuards.isCommentClassElement(methods[index + 1])) {
-                    //     trailingComment = methods[index + 1];
-                    // }
-
-                    // if (leadingComment) {
-                    //     console.log('    Leading comment removed');
-                    //     leadingComment.remove();
-                    // }
+                    func.setBodyText(method.getBodyText() || '');
 
                     let prev = method.getPreviousSibling();
                     while (prev && TypeGuards.isCommentClassElement(prev)) {
-                        console.log('    Prev comment found ' + prev.getText());
+                        // console.log('    Moving leading comment ' + prev.getText());
+                        console.log('    Moving leading comment');
                         prev.remove();
                         prev = method.getPreviousSibling();
                     }
@@ -145,32 +133,113 @@ export function transform(sourceFile: SourceFile) {
                     if (isEnd) {
                         let next = method.getNextSibling();
                         while (next && TypeGuards.isCommentClassElement(next)) {
-                            console.log('    Next comment found ' + next.getText());
+                            // console.log('    Moving trailing comment ' + next.getText());
+                            console.log('    Moving trailing comment');
                             sourceFile.addStatements(next.getText());
                             next.remove();
                             next = method.getNextSibling();
                         }
                     }
-                    // const next = method.getNextSibling();
-                    // if (next && TypeGuards.isCommentClassElement(next)) {
-                    //     console.log('Next comment found ' + next.getText());
-                    // }
 
                     method.remove();
-
-                    // if (trailingComment) {
-                    //     console.log('    Trailing comment removed');
-                    //     trailingComment.remove();
-                    // }
-
                 }
             }
         }
     }
+
+    let classList = sourceFile.getClasses();
+    while (classList.length > 0) {
+        const classDec = classList.shift()!;
+        if (hasEmptyBody(classDec)) {
+            const leadingComments = classDec.getLeadingCommentRanges();
+            const trailingComments = classDec.getTrailingCommentRanges();
+            const comments = [
+                ...leadingComments.map((comment) => comment.getText()),
+                ...trailingComments.map((comment) => comment.getText())
+            ];
+            const index = classDec.getChildIndex();
+            console.log('Removing class ' + index);
+            classDec.remove();
+
+            if (comments.length > 0) {
+                console.log('Moving comments');
+                sourceFile.getSourceFile().insertText(index, [comments.join('\n'), '\n'].join(''));
+            }
+
+            classList = sourceFile.getClasses();
+        }
+    }
+
+    fixAddingParams(sourceFile);
 
     sourceFile.formatText({
         ensureNewLineAtEndOfFile: true,
     });
 
     return sourceFile;
+}
+
+function fixAddingParams(sourceFile: SourceFile) {
+    let checkAgain = true;
+    while (checkAgain) {
+        console.log('Checking again');
+        const methodsAndFunctions = [
+            ...sourceFile.getFunctions(),
+            ...sourceFile.getDescendantsOfKind(SyntaxKind.MethodDeclaration)
+        ];
+        const calls = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression);
+        for (const call of calls) {
+            const identity = call.getFirstDescendantByKind(SyntaxKind.Identifier);
+            if (identity) {
+                const methodOrFunction = methodsAndFunctions.find((node) => node.getName() === identity.getText());
+                if (methodOrFunction) {
+                    const args = call.getArguments();
+                    const params = methodOrFunction.getParameters().filter((param) => !param.isOptional());
+                    if (args.length < params.length) {
+                        call.insertArguments(0, params.map((node) => node.getName()));
+                    }
+                }
+            }
+        }
+
+        checkAgain = false;
+        for (const method of methodsAndFunctions) {
+            checkAgain = checkAgain || fixBody(method);
+        }
+    }
+}
+
+/**
+ * Checks for "player" or "monster" in the body and adds it as a parameter.
+ * Returns true if a change occured.
+ * @param method
+ */
+function fixBody(method: MethodDeclaration | FunctionDeclaration) {
+    let changed = false;
+    const methodBody = method.getBody();
+    if (methodBody) {
+        const identifiers = methodBody.getDescendantsOfKind(SyntaxKind.Identifier);
+
+        // Fix monster parameter requirement
+        let match = identifiers.find((node) => node.getText() === 'monster');
+        if (match && !method.getParameters().find((param) => param.getName() === 'monster')) {
+            changed = true;
+            console.log('    Found monster');
+            method.insertParameter(0, {
+                name: 'monster',
+                type: 'Monster'
+            });
+        }
+        // Fix player parameter requirement
+        match = identifiers.find((node) => node.getText() === 'player');
+        if (match && !method.getParameters().find((param) => param.getName() === 'player')) {
+            changed = true;
+            console.log('    Found player');
+            method.insertParameter(0, {
+                name: 'player',
+                type: 'Player'
+            });
+        }
+    }
+    return changed;
 }
