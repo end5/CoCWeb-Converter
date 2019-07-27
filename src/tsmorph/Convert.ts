@@ -21,7 +21,7 @@ function replace(text: string, searchValue: string | RegExp, replaceValue: strin
 }
 
 const forEachRegex = /^\s*for each\s*\(\s*(var )?([\w\d]+)\s*(?::\s*[\w\d*]+)? in/;
-const declareRegex = /^\s*(public|protected|private|internal)\s+(?:override\s+)?(function|var|class)/;
+const declareRegex = /^\s*(?:override\s+)?(public|protected|private|internal)\s+(static\s+)?(?:override\s+)?(function|var|class|const)/;
 
 const replacePairs: [RegExp, string][] = [
     [/:\s*Function/g, ': () => void'],
@@ -39,9 +39,11 @@ const replacePairs: [RegExp, string][] = [
  * Converts the text from AS3 to TS.
  * Removes 'package' and 'import'.
  * Converts types.
- * @param text A string
+ * If file is loaded by "includes", convert all methods to functions.
+ * @param text
+ * @param isIncluded Was this file loaded by "includes"
  */
-export function convert(text: string) {
+export function convert(text: string, isIncluded: boolean) {
     const lines = text.split('\n');
 
     let removeCurlyBraceOpen = 0;
@@ -86,23 +88,42 @@ export function convert(text: string) {
             if (match.length !== 3)
                 console.log('Incorrect function declaraction match. Line: ' + index);
 
-            if (match[2] === 'function') {
-                if (match[1] === 'internal')
-                    lines[index] = 'public' + lines[index].slice((match.index || 0) + match[0].length);
+            // 1. public|protected|private|internal
+            const accessModifier = match[1];
+            // 2. static
+            const staticModifier = match[2];
+            // 3. function|var|class|const
+            const type = match[3];
+
+            const restOfLine = lines[index].slice((match.index || 0) + match[0].length);
+
+            if (type === 'class') {
+                if (accessModifier === 'public' || accessModifier === 'internal')
+                    lines[index] = 'export ' + staticModifier + type + restOfLine;
                 else
-                    lines[index] = match[1] + lines[index].slice((match.index || 0) + match[0].length);
+                    lines[index] = staticModifier + type + restOfLine;
             }
-            else if (match[2] === 'var') {
-                if (match[1] === 'public')
-                    lines[index] = 'public' + lines[index].slice((match.index || 0) + match[0].length);
-                else
-                    lines[index] = 'private' + lines[index].slice((match.index || 0) + match[0].length);
+            else if (isIncluded) {
+                if (type === 'function' || type === 'var' || type === 'const') {
+                    if (accessModifier === 'internal' || accessModifier === 'public')
+                        lines[index] = 'export ' + type + restOfLine;
+                    else
+                        lines[index] = type + restOfLine;
+                }
             }
-            else if (match[2] === 'class') {
-                if (match[1] === 'public')
-                    lines[index] = 'export class' + lines[index].slice((match.index || 0) + match[0].length);
-                else
-                    lines[index] = 'class' + lines[index].slice((match.index || 0) + match[0].length);
+            else {
+                if (type === 'function' || type === 'var') {
+                    if (accessModifier === 'internal')
+                        lines[index] = 'public ' + staticModifier + restOfLine;
+                    else
+                        lines[index] = accessModifier + ' ' + staticModifier + restOfLine;
+                }
+                else if (type === 'const') {
+                    if (accessModifier === 'internal')
+                        lines[index] = 'public ' + staticModifier + type + restOfLine;
+                    else
+                        lines[index] = accessModifier + ' ' + staticModifier + type + restOfLine;
+                }
             }
         }
 
