@@ -60,6 +60,7 @@ function createToken(stream: StringStream, state: LexerState): Token {
 
 enum TokenSymbol {
     Escape = '\\',
+    Return = '\r',
     Newline = '\n',
     CommentStart = '/',
     BraceOpen = '{',
@@ -75,16 +76,26 @@ function tokenize(stream: StringStream, state: LexerState) {
         while (stream.eat(TokenSymbol.Tab) || stream.eat(TokenSymbol.Space)) { }
         return TokenType.Whitespace;
     }
-    else if (stream.eat(TokenSymbol.Newline)) {
+    else if (
+        stream.eat(TokenSymbol.Newline) ||
+        (stream.eat(TokenSymbol.Return) && stream.eat(TokenSymbol.Newline))
+    ) {
         return TokenType.Newline;
     }
     else if (stream.eat(TokenSymbol.DQuote)) {
-        while (stream.eos()) {
+        while (!stream.eos()) {
             if (stream.eatWhileNot(TokenSymbol.DQuote)) {
                 // Pos moved. Check for escaped quotes.
                 stream.pos--;
-                if (stream.eat(TokenSymbol.Escape))
+                if (stream.eat(TokenSymbol.Escape)) {
+                    stream.eat(TokenSymbol.DQuote);
+                }
+                else {
+                    // No escaped quote
                     stream.pos++;
+                    stream.eat(TokenSymbol.DQuote);
+                    return TokenType.String;
+                }
             }
             else {
                 // Pos didn't move. Error on quote not found.
@@ -97,12 +108,19 @@ function tokenize(stream: StringStream, state: LexerState) {
         return TokenType.String;
     }
     else if (stream.eat(TokenSymbol.Quote)) {
-        while (stream.eos()) {
+        while (!stream.eos()) {
             if (stream.eatWhileNot(TokenSymbol.Quote)) {
                 // Pos moved. Check for escaped quotes.
                 stream.pos--;
-                if (stream.eat(TokenSymbol.Escape))
+                if (stream.eat(TokenSymbol.Escape)) {
+                    stream.eat(TokenSymbol.Quote);
+                }
+                else {
+                    // No escaped quote
                     stream.pos++;
+                    stream.eat(TokenSymbol.Quote);
+                    return TokenType.String;
+                }
             }
             else {
                 // Pos didn't move. Error on quote not found.
@@ -121,7 +139,7 @@ function tokenize(stream: StringStream, state: LexerState) {
     else if (stream.eat(TokenSymbol.CommentStart)) {
         // Block comment
         if (stream.eat('*')) {
-            while (stream.eos()) {
+            while (!stream.eos()) {
                 stream.eatWhileNot('*');
                 if (stream.eat('*')) {
                     if (stream.eat('/'))
@@ -137,6 +155,7 @@ function tokenize(stream: StringStream, state: LexerState) {
         }
     }
     if (stream.eatWhileNot(
+        TokenSymbol.Return,
         TokenSymbol.Newline,
         TokenSymbol.DQuote,
         TokenSymbol.Quote,
