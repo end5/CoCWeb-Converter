@@ -1,4 +1,4 @@
-import { SyntaxKind, MethodDeclarationStructure, TypeGuards, SourceFile, MethodDeclaration, FunctionDeclaration, Node } from "ts-morph";
+import { SyntaxKind, TypeGuards, SourceFile, MethodDeclaration, FunctionDeclaration, Node, MethodDeclarationStructure } from "ts-morph";
 import { TransformConfig, ParameterStruct } from "./Config";
 import { log } from "./Log";
 
@@ -27,9 +27,9 @@ export function transform(sourceFile: SourceFile, config: TransformConfig) {
             }
 
             // Fix methods
-            const methods = classDec.getMembersWithComments();
-
-            for (const method of methods) {
+            let methods = classDec.getMembersWithComments();
+            while (methods.length > 0) {
+                const method = methods.shift()!;
                 if (method.wasForgotten() || !TypeGuards.isMethodDeclaration(method))
                     continue;
 
@@ -43,24 +43,24 @@ export function transform(sourceFile: SourceFile, config: TransformConfig) {
                     if (!methodBody || (methodBody && hasEmptyBody(methodBody))) {
                         log('    Empty body');
                         method.remove();
-                        continue;
                     }
                     else {
                         log('    Converting to constructor');
 
                         // Switch method to constructor
-                        const structure = method.getStructure();
-                        const constr = classDec.insertConstructor(method.getChildIndex(), {
+                        const structure = method.getStructure() as MethodDeclarationStructure;
+                        const index = method.getChildIndex();
+                        method.remove();
+                        const constr = classDec.insertConstructor(index, {
                             docs: structure.docs,
                             leadingTrivia: structure.leadingTrivia,
                             parameters: structure.parameters,
                             scope: structure.scope,
-                            statements: method.getBodyText() || '',
+                            // statements: method.getBodyText() || '',
+                            statements: structure.statements,
                             trailingTrivia: structure.trailingTrivia,
                             typeParameters: structure.typeParameters
                         });
-
-                        method.remove();
 
                         // Check for "super" if class extends anything
                         const constrBody = constr.getBody();
@@ -68,68 +68,72 @@ export function transform(sourceFile: SourceFile, config: TransformConfig) {
                             log('    Adding "super"');
                             constr.insertStatements(0, 'super();');
                         }
-
-                        continue;
                     }
+                    methods = classDec.getMembersWithComments();
                 }
+                else {
 
-                // Fix method body
-                // fixBody(method, config.identiferToParamPairs);
+                    // Fix method body
+                    // fixBody(method, config.identiferToParamPairs);
 
-                // Convert method to function if allowed
-                if (!~config.ignoreClasses.indexOf(className)) {
+                    // Convert method to function if allowed
+                    if (!~config.ignoreClasses.indexOf(className)) {
 
-                    // Check for functions to ignore
-                    let ignoreFuncs: string[] = [];
-                    const impls = classDec.getImplements();
-                    if (impls.length > 0) {
-                        for (const impl of impls) {
-                            const interfaceDef = config.ignoreInterfaceMethods[impl.getText()];
-                            if (interfaceDef) {
-                                ignoreFuncs = ignoreFuncs.concat(interfaceDef);
-                            }
-                        }
-                    }
-
-                    // Convert
-                    if (!~ignoreFuncs.indexOf(method.getName())) {
-                        const structure = method.getStructure() as MethodDeclarationStructure;
-                        log('    Converting to function');
-                        // log(structure.leadingTrivia);
-                        const func = sourceFile.addFunction({
-                            leadingTrivia: method.getLeadingCommentRanges().map((comment) => comment.getText() + (comment.getKind() === SyntaxKind.MultiLineCommentTrivia ? '\n' : '')),
-                            docs: structure.docs,
-                            isExported: !structure.scope || (structure.scope && structure.scope === 'public'),
-                            name: structure.name,
-                            parameters: structure.parameters,
-                            typeParameters: structure.typeParameters,
-                            returnType: structure.returnType,
-                            trailingTrivia: method.getTrailingCommentRanges().map((comment) => comment.getText() + (comment.getKind() === SyntaxKind.MultiLineCommentTrivia ? '\n' : '')),
-                        });
-
-                        func.setBodyText(method.getBodyText() || '');
-
-                        let prev = method.getPreviousSibling();
-                        while (prev && TypeGuards.isCommentClassElement(prev)) {
-                            // log('    Moving leading comment ' + prev.getText());
-                            log('    Moving leading comment');
-                            prev.remove();
-                            prev = method.getPreviousSibling();
-                        }
-
-                        const isEnd = method.getNextSiblings().every((node) => TypeGuards.isCommentClassElement(node));
-                        if (isEnd) {
-                            let next = method.getNextSibling();
-                            while (next && TypeGuards.isCommentClassElement(next)) {
-                                // log('    Moving trailing comment ' + next.getText());
-                                log('    Moving trailing comment');
-                                sourceFile.addStatements(next.getText());
-                                next.remove();
-                                next = method.getNextSibling();
+                        // Check for functions to ignore
+                        let ignoreFuncs: string[] = [];
+                        const impls = classDec.getImplements();
+                        if (impls.length > 0) {
+                            for (const impl of impls) {
+                                const interfaceDef = config.ignoreInterfaceMethods[impl.getText()];
+                                if (interfaceDef) {
+                                    ignoreFuncs = ignoreFuncs.concat(interfaceDef);
+                                }
                             }
                         }
 
-                        method.remove();
+                        // Convert
+                        if (!~ignoreFuncs.indexOf(method.getName())) {
+                            // const structure = method.getStructure() as MethodDeclarationStructure;
+                            log('    Converting to function');
+                            // log(structure.leadingTrivia);
+                            // const func = sourceFile.addFunction({
+                            //     leadingTrivia: method.getLeadingCommentRanges().map((comment) => comment.getText() + (comment.getKind() === SyntaxKind.MultiLineCommentTrivia ? '\n' : '')),
+                            //     docs: structure.docs,
+                            //     isExported: !structure.scope || (structure.scope && structure.scope === 'public'),
+                            //     name: structure.name,
+                            //     parameters: structure.parameters,
+                            //     typeParameters: structure.typeParameters,
+                            //     returnType: structure.returnType,
+                            //     trailingTrivia: method.getTrailingCommentRanges().map((comment) => comment.getText() + (comment.getKind() === SyntaxKind.MultiLineCommentTrivia ? '\n' : '')),
+                            // });
+
+                            // func.setBodyText(method.getBodyText() || '');
+
+                            // let prev = method.getPreviousSibling();
+                            // while (prev && TypeGuards.isCommentClassElement(prev)) {
+                            //     // log('    Moving leading comment ' + prev.getText());
+                            //     log('    Moving leading comment');
+                            //     prev.remove();
+                            //     prev = method.getPreviousSibling();
+                            // }
+
+                            // const isEnd = method.getNextSiblings().every((node) => TypeGuards.isCommentClassElement(node));
+                            // if (isEnd) {
+                            //     let next = method.getNextSibling();
+                            //     while (next && TypeGuards.isCommentClassElement(next)) {
+                            //         // log('    Moving trailing comment ' + next.getText());
+                            //         log('    Moving trailing comment');
+                            //         sourceFile.addStatements(next.getText());
+                            //         next.remove();
+                            //         next = method.getNextSibling();
+                            //     }
+                            // }
+
+                            const text = method.getText();
+                            method.remove();
+                            sourceFile.insertText(sourceFile.getEnd(), text);
+                            methods = classDec.getMembersWithComments();
+                        }
                     }
                 }
             }

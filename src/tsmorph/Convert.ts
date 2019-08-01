@@ -32,6 +32,7 @@ const replacePairs: [RegExp, string][] = [
     [/:\s*void/g, ': void'],
     [/:\s*Array/g, ': any[]'],
     [/Vector.</g, 'Vector<'],
+    [/ is /g, ' instanceof '],
     [/:\*/g, ': any'],  // This one is dangerous
 ];
 
@@ -85,13 +86,13 @@ export function convert(text: string, isIncluded: boolean) {
 
         match = lines[index].match(declareRegex);
         if (match) {
-            if (match.length !== 3)
-                console.log('Incorrect function declaraction match. Line: ' + index);
+            // if (match.length !== 3)
+            //     console.log('Incorrect function declaraction match. Line: ' + index);
 
             // 1. public|protected|private|internal
             const accessModifier = match[1];
-            // 2. static
-            const staticModifier = match[2];
+            // 2. static?
+            const staticModifier = match[2] || '';
             // 3. function|var|class|const
             const type = match[3];
 
@@ -112,17 +113,11 @@ export function convert(text: string, isIncluded: boolean) {
                 }
             }
             else {
-                if (type === 'function' || type === 'var') {
+                if (type === 'function' || type === 'var' || type === 'const') {
                     if (accessModifier === 'internal')
                         lines[index] = 'public ' + staticModifier + restOfLine;
                     else
                         lines[index] = accessModifier + ' ' + staticModifier + restOfLine;
-                }
-                else if (type === 'const') {
-                    if (accessModifier === 'internal')
-                        lines[index] = 'public ' + staticModifier + type + restOfLine;
-                    else
-                        lines[index] = accessModifier + ' ' + staticModifier + type + restOfLine;
                 }
             }
         }
@@ -150,5 +145,9 @@ export function convert(text: string, isIncluded: boolean) {
         }
     }
 
+    // ts-morph has some weird error with removing nodes that have comments on the same line as a closing brace
     return tokens.reduce((str, token) => str + token.text, '');
+    // return tokens.reduce((str, token) => str + token.text, '')
+    //     .replace(/}[ \t]*\/\*/g, '}\n/*')
+    //     .replace(/}[ \t]*\/\//g, '}\n//');
 }

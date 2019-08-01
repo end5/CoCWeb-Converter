@@ -1,9 +1,8 @@
 import { Project } from "ts-morph";
 import { readFileSync, writeFileSync, renameSync } from "fs";
 import { convert } from "./Convert";
-import { transform } from "./Transform";
+import { transform, fixMissingArgs } from "./Transform2";
 import { walk } from "./Walk";
-import { fixMissingArgs } from "./Transform";
 import { TransformConfig } from "./Config";
 
 /*
@@ -19,11 +18,11 @@ import { TransformConfig } from "./Config";
     3. Fix missing arguments
 */
 
-const fileList = walk(process.argv0);
+const fileList = walk('tests/Corruption-of-Champions-master');
 const project = new Project();
 
 const config: TransformConfig = {
-    removeExtends: ["BaseContent", "Utils", "NPCAwareContent", "AbstractLakeContent", "BazaarAbstractContent", "AbstractBoatContent", "AbstractFarmContent", "TelAdreAbstractContent"],
+    removeExtends: ['BaseContent', 'Utils', 'NPCAwareContent', 'AbstractLakeContent', 'BazaarAbstractContent', 'AbstractBoatContent', 'AbstractFarmContent', 'TelAdreAbstractContent', 'Enum', 'DefaultDict'],
 
     ignoreClasses: [],
 
@@ -38,26 +37,41 @@ const config: TransformConfig = {
 };
 
 // Step 1
+console.log('Step 1 ...');
 // Convert AS3 files to TS files
 for (const file of fileList) {
-    const text = readFileSync(file).toString();
-    const newText = convert(text, file.includes('includes'));
-    writeFileSync(file, newText);
-    const newFilename = file.replace('.as', '.ts');
-    renameSync(file, newFilename);
-    project.addExistingSourceFile(newFilename);
+    let filename = file;
+    if (file.endsWith('.as')) {
+        console.log('Converting ' + file);
+        const text = readFileSync(file).toString();
+        const newText = convert(text, file.includes('includes'));
+        writeFileSync(file, newText);
+        filename = file.replace('.as', '.ts');
+        renameSync(file, filename);
+    }
+    // else
+    //     console.log('Skipping ' + file);
+    project.addExistingSourceFile(filename);
 }
-
-const sourceFiles = project.getSourceFiles();
+console.log(' finished');
 
 // Step 2
+const sourceFiles = project.getSourceFiles();
+console.log('Step 2 ...');
 for (const sourceFile of sourceFiles) {
-    const newSourceFile = transform(sourceFile, config);
+    console.log('Transforming ' + sourceFile.getFilePath());
 
-    newSourceFile.saveSync();
+    let result = transform(sourceFile, config);
+    while (result.state === 'restart') {
+        result = transform(result.sourceFile, config);
+    }
+
+    result.sourceFile.saveSync();
 }
+console.log(' finished');
 
 // Step 3
+console.log('Step 3 ...');
 // Continue checking for missing arguments
 let missingArgs = false;
 while (missingArgs) {
@@ -68,3 +82,4 @@ while (missingArgs) {
         sourceFile.saveSync();
     }
 }
+console.log(' finished');

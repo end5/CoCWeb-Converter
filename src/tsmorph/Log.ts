@@ -1,14 +1,25 @@
-let logEnabled = false;
+let logType: 'string' | 'console' | 'file' | '' = '';
+let logText = '';
 
-export function enableLog() {
-    logEnabled = true;
+export function logToConsole() {
+    logType = 'console';
 }
 
-export function disableLog() {
-    logEnabled = false;
+export function logToString() {
+    logType = 'string';
+}
+
+export function getLogText() {
+    return logText;
 }
 
 export function log(message: any) {
-    if (logEnabled)
+    if (logType === 'console')
         console.log(message + '');
+    else if (logType === 'string') {
+        logText += String(message) + '\n';
+    }
+    else if (logType === 'file') {
+
+    }
 }
