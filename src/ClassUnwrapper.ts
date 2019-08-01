@@ -1,5 +1,5 @@
 import * as ts from "typescript";
-import { TransformConfig } from "../tsmorph/Config";
+import { TransformConfig } from "./Config";
 
 export function getTextChanges(node: ts.SourceFile, config: TransformConfig) {
     let changes: ts.TextChange[] = [];
@@ -121,7 +121,7 @@ function getMethodChanges(node: ts.MethodDeclaration, className: string, impleme
 
             const methodText = node.getText();
             const leadingTrivia = sourceFileText.slice(leadingTriviaStart, methodStart);
-            console.log('lead ', leadingTrivia);
+            // console.log('lead ', leadingTrivia);
             let newText = methodText;
             let newPreText = '';
             if (node.modifiers) {

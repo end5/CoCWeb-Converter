@@ -13,9 +13,9 @@ export function getLogText() {
     return logText;
 }
 
-export function log(message: any) {
+export function log(message: any, ...optParams: any[]) {
     if (logType === 'console')
-        console.log(message + '');
+        console.log(message + '', optParams);
     else if (logType === 'string') {
         logText += String(message) + '\n';
     }

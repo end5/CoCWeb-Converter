@@ -1,4 +1,4 @@
-import { StringStream } from "../tsmorph/Lexer/StringStream";
+import { StringStream } from "../../Lexer/StringStream";
 
 export function trimLeft(strings: TemplateStringsArray, ...values: any[]) {
     return strings.reduce((prev, curr, index) => prev + curr.trimLeft() + (values[index] || ''), '');

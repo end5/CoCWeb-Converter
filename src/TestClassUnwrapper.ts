@@ -1,9 +1,8 @@
 import { readFileSync, writeFileSync } from "fs";
 import * as ts from "typescript";
-import { convert } from "../tsmorph/Convert";
-import { logToConsole } from "../tsmorph/Log";
-import { TransformConfig } from "../tsmorph/Config";
-import { getTextChanges } from "./Transformer";
+import { convert } from "./Convert";
+import { TransformConfig } from "./Config";
+import { getTextChanges } from "./ClassUnwrapper";
 import { applyTextChanges } from "./TextChange";
 
 const files: [string, string][] = [["tests/test3.as", "tests/test3.ts"]];
@@ -21,8 +20,6 @@ const config: TransformConfig = {
         { name: 'monster', type: 'Monster' }
     ],
 };
-
-logToConsole();
 
 for (const file of files) {
     const text = readFileSync(file[0]).toString();
