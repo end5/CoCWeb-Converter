@@ -1,5 +1,5 @@
 import { readFileSync } from "fs";
-import { lex } from "./Lexer/Lexer";
+import { lex } from "../../src/Lexer/Lexer";
 
 testLexer('tests/test3.as');
 

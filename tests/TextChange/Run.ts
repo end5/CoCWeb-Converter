@@ -1,6 +1,6 @@
-import { applyTextChanges } from "./TextChange";
+import { applyTextChanges } from "../../src/TextChange";
 
-console.log(applyTextChanges('0123456789', [{
+const test = applyTextChanges('0123456789', [{
     span: {
         start: 1,
         length: 2
@@ -18,4 +18,6 @@ console.log(applyTextChanges('0123456789', [{
         length: 0
     },
     newText: 'qwer'
-}]));
+}]);
+
+console.log(test === '0a3456b89qwer' ? 'Success' : 'Fail');

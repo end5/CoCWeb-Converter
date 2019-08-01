@@ -1,6 +1,6 @@
 import { SyntaxKind, TypeGuards, SourceFile, MethodDeclaration, FunctionDeclaration, Node } from "ts-morph";
 import { TransformConfig, ParameterStruct } from "../../Config";
-import { log } from "../../Log";
+import { log } from "./Log";
 
 /**
  * Transforms code using the following steps.

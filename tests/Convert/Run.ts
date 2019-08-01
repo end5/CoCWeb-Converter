@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "fs";
-import { convert } from "./Convert";
+import { convert } from "../../src/Convert";
 
-fixTSFile('tests/test3.as', 'tests/test3_partial.ts');
+fixTSFile('./test.as', './test.ts');
 
 function fixTSFile(path: string, pathOut: string) {
     let text = readFileSync(path).toString();

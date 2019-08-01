@@ -1,9 +1,9 @@
 import { readFileSync, writeFileSync } from "fs";
 import * as ts from "typescript";
-import { convert } from "./Convert";
-import { TransformConfig } from "./Config";
-import { getTextChanges } from "./ClassUnwrapper";
-import { applyTextChanges } from "./TextChange";
+import { convert } from "../../src/Convert";
+import { TransformConfig } from "../../src/Config";
+import { getTextChanges } from "../../src/ClassUnwrapper";
+import { applyTextChanges } from "../../src/TextChange";
 
 const files: [string, string][] = [["tests/test3.as", "tests/test3.ts"]];
 const config: TransformConfig = {

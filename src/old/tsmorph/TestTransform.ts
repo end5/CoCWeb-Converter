@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "fs";
 import { convert } from "../../Convert";
 import { transform } from "./Transform2";
 import { TransformConfig } from "../../Config";
-import { logToConsole } from "../../Log";
+import { logToConsole } from "./Log";
 
 // const project = new Project({
 //     tsConfigFilePath: "tests/testconfig.json",
