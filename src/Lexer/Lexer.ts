@@ -17,7 +17,7 @@ export function lex(text: string, returnStates?: boolean): Token[] | LexerState[
     const state: LexerState = {
         lineNum: 0,
         offset: 0,
-        token: { type: TokenType.String, offset: 0, range: new TextRange(), text: '' }
+        token: { type: TokenType.String, pos: 0, range: new TextRange(), text: '' }
     };
 
     while (!stream.eos()) {
@@ -52,7 +52,7 @@ function createToken(stream: StringStream, state: LexerState): Token {
     const start = { line: state.lineNum, col: stream.pos - state.offset };
     return {
         type: tokenize(stream, state),
-        offset: state.offset,
+        pos: startPos,
         range: new TextRange(start, { line: state.lineNum, col: stream.pos - state.offset }),
         text: stream.text().slice(startPos, stream.pos)
     };

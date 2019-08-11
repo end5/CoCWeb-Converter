@@ -1,7 +1,9 @@
 import * as ts from "typescript";
 import { TransformConfig } from "./Config";
+import { lex } from "./Lexer/Lexer";
+import { TokenType } from "./Lexer/Token";
 
-export function getTextChanges(node: ts.SourceFile, config: TransformConfig) {
+export function getClassChanges(node: ts.SourceFile, config: TransformConfig) {
     let changes: ts.TextChange[] = [];
 
     for (const statement of node.statements) {
@@ -53,6 +55,11 @@ function getClassTextChanges(node: ts.ClassDeclaration, config: TransformConfig)
     return changes;
 }
 
+/**
+ * If the class extends anything specified in the config, remove it
+ * @param node
+ * @param config
+ */
 function getHeritageTextChanges(node: ts.HeritageClause, config: TransformConfig) {
     // Remove extends if match in config
     if (node.token === ts.SyntaxKind.ExtendsKeyword) {
@@ -70,35 +77,75 @@ function getHeritageTextChanges(node: ts.HeritageClause, config: TransformConfig
     return;
 }
 
-function getMethodChanges(node: ts.MethodDeclaration, className: string, implementsNames: string[], config: TransformConfig) {
-    const changes: ts.TextChange[] = [];
-    // This method should be the constructor
-    if (className === node.name.getText()) {
-        // Remove if empty body
-        if (!node.body) {
-            changes.push({
+/**
+ * Check if the method node has an empty body ignoring whitespace.
+ * @param node
+ */
+function hasEmptyBody(node: ts.MethodDeclaration) {
+    const body = node.body;
+    if (!body) return false;
+
+    // Looking for token pattern
+    // OpenBrace - no children
+    // SyntaxList - no children
+    // CloseBrace - no children
+
+    const children = body.getChildren();
+    let index = 0;
+    while (children[index].kind !== ts.SyntaxKind.OpenBraceToken)
+        index++;
+
+    if (index + 2 >= body.getChildCount())
+        return false;
+
+    return children[index].kind === ts.SyntaxKind.OpenBraceToken && children[index].getChildCount() === 0 &&
+        children[index + 1].kind === ts.SyntaxKind.SyntaxList && children[index + 1].getChildCount() === 0 &&
+        children[index + 2].kind === ts.SyntaxKind.CloseBraceToken && children[index + 2].getChildCount() === 0;
+}
+
+/**
+ * May change the method using one of the matching patterns listed below. Checked in order.
+ * - Empty method -> Replace it with comments
+ * - Method name === Class name -> Rename to 'constructor'
+ * - Not on ignore list -> Convert method to function
+ * @param node
+ * @param className
+ * @param implementsNames
+ * @param config
+ */
+function getMethodChanges(node: ts.MethodDeclaration, className: string, implementsNames: string[], config: TransformConfig): ts.TextChange[] {
+
+    // Method has an empty body
+    if (hasEmptyBody(node)) {
+        const comments = lex(node.getText()).filter((token) => token.type === TokenType.Comment).join('\n');
+        return [
+            // Remove method and replace it with any comments found inside of it
+            {
                 span: {
                     start: node.getStart(),
                     length: node.getWidth()
                 },
-                newText: ''
-            });
-        }
-        else {
-            // * Need check here for body with only comments and whitespace
+                newText: comments
+            }
+        ];
+    }
 
+    // Method is actually the constructor
+    if (className === node.name.getText()) {
+        return [
             // Convert to constructor
-            changes.push({
+            {
                 span: {
                     start: node.name.getStart(),
                     length: node.name.getWidth()
                 },
                 newText: 'constructor'
-            });
-        }
+            }
+        ];
     }
-    // Convert methods to functions if class not on ignore list
-    else if (className && !~config.ignoreClasses.indexOf(className)) {
+
+    // Convert methods to functions if not on an ignore list
+    if (className && !~config.ignoreClasses.indexOf(className)) {
 
         // Check for functions to ignore
         let ignoreFuncs: string[] = [];
@@ -135,24 +182,27 @@ function getMethodChanges(node: ts.MethodDeclaration, className: string, impleme
             }
             newText = leadingTrivia + newPreText + ' function ' + newText;
 
-            // Remove method
-            changes.push({
-                span: {
-                    start: node.getFullStart(),
-                    length: node.getFullWidth()
+            return [
+                // Remove method
+                {
+                    span: {
+                        start: node.getFullStart(),
+                        length: node.getFullWidth()
+                    },
+                    newText: ''
                 },
-                newText: ''
-            });
-
-            // Insert function at bottom
-            changes.push({
-                span: {
-                    start: node.getSourceFile().getEnd(),
-                    length: 0
-                },
-                newText
-            });
+                // Insert function at bottom
+                {
+                    span: {
+                        start: node.getSourceFile().getEnd(),
+                        length: 0
+                    },
+                    newText
+                }
+            ];
         }
     }
-    return changes;
+
+    // No changes
+    return [];
 }

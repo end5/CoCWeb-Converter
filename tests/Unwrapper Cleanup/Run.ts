@@ -26,7 +26,7 @@ const config: TransformConfig = {
 for (const file of files) {
     const text = readFileSync(file[0]).toString();
 
-    const fixedText = applyTextChanges(text, convert(text, false));
+    const fixedText = convert(text, false);
 
     const sourceFile = ts.createSourceFile(
         file[0],
@@ -36,7 +36,9 @@ for (const file of files) {
         ts.ScriptKind.TS
     );
 
-    const newText = applyTextChanges(fixedText, getClassChanges(sourceFile, config));
+    const changes = getClassChanges(sourceFile, config);
+
+    const newText = applyTextChanges(fixedText, changes);
 
     writeFileSync(file[1], newText);
 }

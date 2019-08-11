@@ -1,14 +1,21 @@
 import { readFileSync, writeFileSync } from "fs";
 import { convert } from "../../src/Convert";
+import { applyTextChanges } from "../../src/TextChange";
 
-fixTSFile('./test.as', './test.ts');
+const _path = 'tests/Convert/';
 
-function fixTSFile(path: string, pathOut: string) {
-    let text = readFileSync(path).toString();
+const files: [string, string][] = [[_path + "test.as", _path + "test.ts"]];
 
-    text = convert(text, false);
+for (const file of files) {
+
+    let text = readFileSync(file[0]).toString();
+
+    const changes = convert(text, false);
+    for (const change of changes)
+        console.log(JSON.stringify(text.substr(change.span.start, change.span.length)) + '\n> ' + JSON.stringify(change.newText));
+    text = applyTextChanges(text, changes);
 
     // console.log(text.replace(/\n/g, '\\n').replace(/\r/g, '\\r'));
 
-    writeFileSync(pathOut, text);
+    writeFileSync(file[1], text);
 }

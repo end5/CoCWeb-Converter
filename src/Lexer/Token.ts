@@ -13,7 +13,7 @@ export enum TokenType {
 
 export interface Token {
     type: TokenType;
-    offset: number;
+    pos: number;
     range: TextRange;
     text: string;
 }

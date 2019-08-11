@@ -1,5 +1,6 @@
+import * as ts from "typescript";
 import { lex } from "./Lexer/Lexer";
-import { TokenType } from "./Lexer/Token";
+import { TokenType, Token } from "./Lexer/Token";
 
 type ReplaceFunc = (match: string, ...args: string[]) => string;
 
@@ -36,6 +37,16 @@ const replacePairs: [RegExp, string][] = [
     [/:\*/g, ': any'],  // This one is dangerous
 ];
 
+function textChange(token: Token, newText: string) {
+    return {
+        span: {
+            start: token.pos,
+            length: token.text.length
+        },
+        newText
+    };
+}
+
 /**
  * Converts the text from AS3 to TS.
  * Removes 'package' and 'import'.
@@ -45,109 +56,149 @@ const replacePairs: [RegExp, string][] = [
  * @param isIncluded Was this file loaded by "includes"
  */
 export function convert(text: string, isIncluded: boolean) {
-    const lines = text.split('\n');
+    let changes: ts.TextChange[] = [];
+    const tokens = lex(text);
+    let token;
+    for (let index = 0; index < tokens.length; index++) {
+        token = tokens[index];
+        // console.log(index, token.text);
 
-    let removeCurlyBraceOpen = 0;
-    let removeCurlyBraceClose = 0;
-    let index = 0;
-    while (index < lines.length) {
-        // Remove - package ...
-        if (lines[index].trimLeft().startsWith('package')) {
-            if (!lines[index].includes('{'))
-                removeCurlyBraceOpen++;
-            removeCurlyBraceClose++;
-            lines.splice(index, 1);
-            continue;
-        }
-
-        // Remove - if package ... then {
-        if (removeCurlyBraceOpen > 0 && lines[index].trimLeft().startsWith('{')) {
-            lines.splice(index, 1);
-            removeCurlyBraceOpen--;
-            continue;
-        }
-
-        // Remove - import ...
-        if (lines[index].trimLeft().startsWith('import')) {
-            lines.splice(index, 1);
-            continue;
-        }
-
-        // Fix "for each"
-        let match = lines[index].match(forEachRegex);
-        if (match) {
-            lines[index] =
-                'for(' +
-                (match[1] ? 'const ' : '') +
-                match[2] +
-                ' of' +
-                lines[index].slice((match.index || 0) + match[0].length);
-        }
-
-        match = lines[index].match(declareRegex);
-        if (match) {
-            // if (match.length !== 3)
-            //     console.log('Incorrect function declaraction match. Line: ' + index);
-
-            // 1. public|protected|private|internal
-            const accessModifier = match[1];
-            // 2. static?
-            const staticModifier = match[2] || '';
-            // 3. function|var|class|const
-            const type = match[3];
-
-            const restOfLine = lines[index].slice((match.index || 0) + match[0].length);
-
-            if (type === 'class') {
-                if (accessModifier === 'public' || accessModifier === 'internal')
-                    lines[index] = 'export ' + staticModifier + type + restOfLine;
-                else
-                    lines[index] = staticModifier + type + restOfLine;
+        if (token.type === TokenType.Code) {
+            if (token.text.startsWith('package')) {
+                // tokens.splice(index, 1);
+                // console.log('Removing ' + token.text);
+                changes = changes.concat(
+                    [textChange(token, '')],
+                    removeMatchingBraces(tokens, index)
+                );
             }
-            else if (isIncluded) {
-                if (type === 'function' || type === 'var' || type === 'const') {
-                    if (accessModifier === 'internal' || accessModifier === 'public')
-                        lines[index] = 'export ' + type + restOfLine;
-                    else
-                        lines[index] = type + restOfLine;
-                }
+            else if (token.text.startsWith('import')) {
+                // tokens.splice(index, 1);
+                // console.log('Removing ' + token.text);
+                changes.push(textChange(token, ''));
             }
             else {
-                if (type === 'function' || type === 'var' || type === 'const') {
-                    if (accessModifier === 'internal')
-                        lines[index] = 'public ' + staticModifier + restOfLine;
-                    else
-                        lines[index] = accessModifier + ' ' + staticModifier + restOfLine;
+                // Fix "for each"
+                let match = token.text.match(forEachRegex);
+                if (match) {
+                    // token.text =
+                    //     'for(' +
+                    //     (match[1] ? 'const ' : '') +
+                    //     match[2] +
+                    //     ' of' +
+                    //     token.text.slice((match.index || 0) + match[0].length);
+                    changes.push(textChange(token,
+                        'for(' +
+                        (match[1] ? 'const ' : '') +
+                        match[2] +
+                        ' of' +
+                        token.text.slice((match.index || 0) + match[0].length)
+                    ));
+                }
+
+                match = token.text.match(declareRegex);
+                if (match) {
+
+                    // 1. public|protected|private|internal
+                    const accessModifier = match[1];
+                    // 2. static?
+                    const staticModifier = match[2] || '';
+                    // 3. function|var|class|const
+                    const type = match[3];
+
+                    const restOfLine = token.text.slice((match.index || 0) + match[0].length);
+
+                    if (type === 'class') {
+                        if (accessModifier === 'public' || accessModifier === 'internal')
+                            // token.text = 'export ' + staticModifier + type + restOfLine;
+                            changes.push(textChange(token, 'export ' + staticModifier + type + restOfLine));
+                        else
+                            // token.text = staticModifier + type + restOfLine;
+                            changes.push(textChange(token, staticModifier + type + restOfLine));
+                    }
+                    else if (isIncluded) {
+                        if (type === 'function' || type === 'var' || type === 'const') {
+                            if (accessModifier === 'internal' || accessModifier === 'public')
+                                // token.text = 'export ' + type + restOfLine;
+                                changes.push(textChange(token, 'export ' + type + restOfLine));
+                            else
+                                // token.text = type + restOfLine;
+                                changes.push(textChange(token, type + restOfLine));
+                        }
+                    }
+                    else {
+                        if (type === 'function' || type === 'var' || type === 'const') {
+                            if (accessModifier === 'internal')
+                                // token.text = 'public ' + staticModifier + restOfLine;
+                                changes.push(textChange(token, 'public ' + staticModifier + restOfLine));
+                            else
+                                // token.text = accessModifier + ' ' + staticModifier + restOfLine;
+                                changes.push(textChange(token, accessModifier + ' ' + staticModifier + restOfLine));
+                        }
+                    }
+                }
+
+                for (const pair of replacePairs) {
+                    let replaceText = replace(token.text, pair[0], pair[1]);
+                    replaceText = replaceText += '';
+                    if (replaceText !== token.text)
+                        changes.push(textChange(token, replaceText));
                 }
             }
         }
-
-        index++;
     }
 
-    text = lines.join('\n');
+    // return tokens.map((tkn) => tkn.text).join('');
+    return changes;
+}
 
-    index = text.length - 1;
-    while (removeCurlyBraceClose > 0) {
-        if (text[index] === '}') {
-            text = text.slice(0, index) + text.substr(index + 1);
-            removeCurlyBraceClose--;
+function removeMatchingBraces(tokens: Token[], startIndex: number): ts.TextChange[] {
+
+    // console.log(tokens.reduce((count, token) => {
+    //     if (token.type === TokenType.BraceOpen)
+    //         count++;
+    //     else if (token.type === TokenType.BraceClose)
+    //         count--;
+    //     return count;
+    // }, 0) ? 'Mismatched braces' : 'Braces are ok');
+
+    let braceOpenIndex = startIndex;
+    // Find first open brace index
+    if (tokens[braceOpenIndex].type !== TokenType.BraceOpen)
+        for (let index = startIndex; index < tokens.length; index++)
+            if (tokens[index].type === TokenType.BraceOpen) {
+                braceOpenIndex = index;
+                break;
+            }
+
+    // Find matching close brace index
+    let braceCounter = 1;
+    let braceCloseIndex = 0;
+    // console.log('brace ' + braceCounter);
+    for (let index = braceOpenIndex + 1; index < tokens.length; index++) {
+        if (tokens[index].type === TokenType.BraceOpen) {
+            braceCounter++;
+            // console.log('brace++ ' + braceCounter);
         }
-        index--;
-    }
+        else if (tokens[index].type === TokenType.BraceClose) {
+            braceCounter--;
+            // console.log('brace-- ' + braceCounter);
+        }
 
-    // Using this to filter out non code
-    const tokens = lex(text);
-    for (const token of tokens) {
-        if (token.type === TokenType.Code) {
-            for (const pair of replacePairs)
-                token.text = replace(token.text, pair[0], pair[1]);
+        if (braceCounter === 0) {
+            braceCloseIndex = index;
+            break;
         }
     }
 
-    // ts-morph has some weird error with removing nodes that have comments on the same line as a closing brace
-    return tokens.reduce((str, token) => str + token.text, '');
-    // return tokens.reduce((str, token) => str + token.text, '')
-    //     .replace(/}[ \t]*\/\*/g, '}\n/*')
-    //     .replace(/}[ \t]*\/\//g, '}\n//');
+    if (braceCounter !== 0)
+        throw new Error('Could not find matching closing brace. Mismatch count ' + braceCounter);
+
+    // Remove braces
+    // tokens.splice(braceOpenIndex, 1);
+    // tokens.splice(breaceCloseIndex, 1);
+    return [
+        textChange(tokens[braceOpenIndex], ''),
+        textChange(tokens[braceCloseIndex], ''),
+    ];
 }

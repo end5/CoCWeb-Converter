@@ -1,14 +1,16 @@
 import { readFileSync } from "fs";
 import { lex } from "../../src/Lexer/Lexer";
 
-testLexer('tests/test3.as');
+const path = 'tests/Lexer/';
 
-function testLexer(path: string) {
-    const text = readFileSync(path).toString();
+const files = [path + "test.as"];
+
+for (const file of files) {
+    const text = readFileSync(file).toString();
 
     const tokens = lex(text);
 
     for (const token of tokens)
-        console.log(token.type + ':"' + token.text.replace(/\n/g, '\\n').replace(/\r/g, '\\r') + '"');
+        console.log( `[${token.pos}:${token.text.length}]` + token.type + ':"' + JSON.stringify(token.text) + '"');
 
 }
