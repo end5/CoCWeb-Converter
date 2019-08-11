@@ -12,7 +12,11 @@
         "typescript": "^3.5.1"
     },
     "scripts": {
-        "test": "ts-node src/tsmorph/RunTransform.ts"
+        "test all": "ts-node tests/All/Run.ts",
+        "test convert": "ts-node tests/Convert/Run.ts",
+        "test lexer": "ts-node tests/Lexer/Run.ts",
+        "test text change": "ts-node tests/TextChange/Run.ts",
+        "test unwrapper": "ts-node tests/Unwrapper/Run.ts"
     },
     "repository": {
         "type": "git",
