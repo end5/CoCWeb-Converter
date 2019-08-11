@@ -26,7 +26,7 @@ export function fixMissingArgs(sourceFile: SourceFile, config: TransformConfig) 
                         const args = call.getArguments();
                         const params = funcDef.getParameters().filter((param) => !param.isOptional());
                         if (args.length < params.length) {
-                            call.insertArguments(0, params.map((node) => node.getName()));
+                            call.insertArguments(0, params.map((node) => node.getName()).slice(0, params.length - args.length));
                             changeOccured = true;
                         }
                     }

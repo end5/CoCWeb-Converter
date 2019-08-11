@@ -2,24 +2,24 @@ import * as ts from "typescript";
 import { lex } from "./Lexer/Lexer";
 import { TokenType, Token } from "./Lexer/Token";
 
-type ReplaceFunc = (match: string, ...args: string[]) => string;
+// type ReplaceFunc = (match: string, ...args: string[]) => string;
 
-function check(searchValue: string | RegExp, strOrFunc: string | ReplaceFunc) {
-    return (match: string, ...args: string[]) => {
-        if (match.split('\n').length > 1)
-            console.error('Warning: Large match\nSearch Value: ' + searchValue + '\n' + match);
+// function check(searchValue: string | RegExp, strOrFunc: string | ReplaceFunc) {
+//     return (match: string, ...args: string[]) => {
+//         if (match.split('\n').length > 1)
+//             console.error('Warning: Large match\nSearch Value: ' + searchValue + '\n' + match);
 
-        if (typeof strOrFunc === 'string')
-            return strOrFunc;
-        else if (typeof strOrFunc === 'function')
-            return strOrFunc(match, ...args);
-        return '';
-    };
-}
+//         if (typeof strOrFunc === 'string')
+//             return strOrFunc;
+//         else if (typeof strOrFunc === 'function')
+//             return strOrFunc(match, ...args);
+//         return '';
+//     };
+// }
 
-function replace(text: string, searchValue: string | RegExp, replaceValue: string | ReplaceFunc): string {
-    return text.replace(searchValue, check(searchValue, replaceValue));
-}
+// function replace(text: string, searchValue: string | RegExp, replaceValue: string | ReplaceFunc): string {
+//     return text.replace(searchValue, check(searchValue, replaceValue));
+// }
 
 const forEachRegex = /^\s*for each\s*\(\s*(var )?([\w\d]+)\s*(?::\s*[\w\d*]+)? in/;
 const declareRegex = /^\s*(?:override\s+)?(public|protected|private|internal)\s+(static\s+)?(?:override\s+)?(function|var|class|const)/;
@@ -106,43 +106,86 @@ export function convert(text: string, isIncluded: boolean) {
                     // 3. function|var|class|const
                     const type = match[3];
 
-                    const restOfLine = token.text.slice((match.index || 0) + match[0].length);
+                    // const restOfLine = token.text.slice((match.index || 0) + match[0].length);
 
                     if (type === 'class') {
                         if (accessModifier === 'public' || accessModifier === 'internal')
                             // token.text = 'export ' + staticModifier + type + restOfLine;
-                            changes.push(textChange(token, 'export ' + staticModifier + type + restOfLine));
+                            changes.push({
+                                newText: 'export ' + staticModifier + type,
+                                span: {
+                                    start: token.pos,
+                                    length: match[0].length
+                                }
+                            });
                         else
                             // token.text = staticModifier + type + restOfLine;
-                            changes.push(textChange(token, staticModifier + type + restOfLine));
+                            changes.push({
+                                newText: staticModifier + type,
+                                span: {
+                                    start: token.pos,
+                                    length: match[0].length
+                                }
+                            });
                     }
                     else if (isIncluded) {
                         if (type === 'function' || type === 'var' || type === 'const') {
                             if (accessModifier === 'internal' || accessModifier === 'public')
                                 // token.text = 'export ' + type + restOfLine;
-                                changes.push(textChange(token, 'export ' + type + restOfLine));
+                                changes.push({
+                                    newText: 'export ' + type,
+                                    span: {
+                                        start: token.pos,
+                                        length: match[0].length
+                                    }
+                                });
                             else
                                 // token.text = type + restOfLine;
-                                changes.push(textChange(token, type + restOfLine));
+                                changes.push({
+                                    newText: type,
+                                    span: {
+                                        start: token.pos,
+                                        length: match[0].length
+                                    }
+                                });
                         }
                     }
                     else {
                         if (type === 'function' || type === 'var' || type === 'const') {
                             if (accessModifier === 'internal')
                                 // token.text = 'public ' + staticModifier + restOfLine;
-                                changes.push(textChange(token, 'public ' + staticModifier + restOfLine));
+                                changes.push({
+                                    newText: 'public ' + staticModifier,
+                                    span: {
+                                        start: token.pos,
+                                        length: match[0].length
+                                    }
+                                });
                             else
                                 // token.text = accessModifier + ' ' + staticModifier + restOfLine;
-                                changes.push(textChange(token, accessModifier + ' ' + staticModifier + restOfLine));
+                                changes.push({
+                                    newText: accessModifier + ' ' + staticModifier,
+                                    span: {
+                                        start: token.pos,
+                                        length: match[0].length
+                                    }
+                                });
                         }
                     }
                 }
 
                 for (const pair of replacePairs) {
-                    let replaceText = replace(token.text, pair[0], pair[1]);
-                    replaceText = replaceText += '';
-                    if (replaceText !== token.text)
-                        changes.push(textChange(token, replaceText));
+                    do {
+                        match = pair[0].exec(token.text);
+                        if (match)
+                            changes.push({
+                                newText: pair[1],
+                                span: {
+                                    start: token.pos + (match.index || 0),
+                                    length: match[0].length
+                                }
+                            });
+                    } while (match);
                 }
             }
         }

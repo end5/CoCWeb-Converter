@@ -16,7 +16,8 @@
         "test convert": "ts-node tests/Convert/Run.ts",
         "test lexer": "ts-node tests/Lexer/Run.ts",
         "test text change": "ts-node tests/TextChange/Run.ts",
-        "test unwrapper": "ts-node tests/Unwrapper/Run.ts"
+        "test unwrapper": "ts-node tests/Unwrapper/Run.ts",
+        "test fix": "ts-node tests/Fix/Run.ts"
     },
     "repository": {
         "type": "git",

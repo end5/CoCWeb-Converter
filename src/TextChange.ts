@@ -2,8 +2,8 @@ import * as ts from "typescript";
 
 export function applyTextChanges(text: string, changes: ts.TextChange[]) {
     // console.log(changes);
-    // const sortedChanges = changes.sort((a, b) => a.span.start - b.span.start);
-    const sortedChanges = changes;
+    const sortedChanges = changes.sort((a, b) => a.span.start - b.span.start);
+    // const sortedChanges = changes;
     let index = 0;
     let newText = '';
     let postText = '';

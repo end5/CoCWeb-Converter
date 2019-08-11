@@ -18,7 +18,7 @@ function createSourceFile(path: string, text: string) {
     );
 }
 
-export function run(fileList: string[], config: TransformConfig) {
+export function run(fileList: string[], config: TransformConfig, rename?: boolean) {
     const project = new Project();
 
     // Stage 1
@@ -49,8 +49,13 @@ export function run(fileList: string[], config: TransformConfig) {
             newText = applyTextChanges(newText, changes);
             sourceFile = createSourceFile(curFile, newText);
 
-            writeFileSync(file, newText);
-            renameSync(file, curFile);
+            if (rename) {
+                writeFileSync(file, newText);
+                renameSync(file, curFile);
+            }
+            else {
+                writeFileSync(curFile, newText);
+            }
         }
         // else
         //     console.log('Skipping ' + file);

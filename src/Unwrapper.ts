@@ -92,7 +92,7 @@ function hasEmptyBody(node: ts.MethodDeclaration) {
 
     const children = body.getChildren();
     let index = 0;
-    while (children[index].kind !== ts.SyntaxKind.OpenBraceToken)
+    while (index < children.length && children[index].kind !== ts.SyntaxKind.OpenBraceToken)
         index++;
 
     if (index + 2 >= body.getChildCount())
