@@ -17,7 +17,9 @@
         "test lexer": "ts-node tests/Lexer/Run.ts",
         "test text change": "ts-node tests/TextChange/Run.ts",
         "test unwrapper": "ts-node tests/Unwrapper/Run.ts",
-        "test fix": "ts-node tests/Fix/Run.ts"
+        "test unwrapper cleanup": "ts-node tests/UnwrapperCleanup/Run.ts",
+        "test fix": "ts-node tests/Fix/Run.ts",
+        "run": "ts-node test/Run.ts"
     },
     "repository": {
         "type": "git",

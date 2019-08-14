@@ -4,8 +4,9 @@ import { convert } from "../../src/Convert";
 import { TransformConfig } from "../../src/Config";
 import { getClassChanges } from "../../src/Unwrapper";
 import { applyTextChanges } from "../../src/TextChange";
+import { getCleanupChanges } from "../../src/UnwrapperCleanUp";
 
-const path = 'tests/Unwrapper/';
+const path = 'tests/UnwrapperCleanup/';
 
 const files: [string, string][] = [[path + "test.as", path + "test.ts"]];
 const config: TransformConfig = {
@@ -26,19 +27,27 @@ const config: TransformConfig = {
 for (const file of files) {
     const text = readFileSync(file[0]).toString();
 
-    const fixedText = convert(text, false);
+    let newText = applyTextChanges(text, convert(text, false));
 
-    const sourceFile = ts.createSourceFile(
+    let sourceFile = ts.createSourceFile(
         file[0],
-        fixedText,
+        newText,
         ts.ScriptTarget.ES2015,
         /*setParentNodes */ true,
         ts.ScriptKind.TS
     );
 
-    const changes = getClassChanges(sourceFile, config);
+    newText = applyTextChanges(newText, getClassChanges(sourceFile, config));
 
-    const newText = applyTextChanges(fixedText, changes);
+    sourceFile = ts.createSourceFile(
+        file[0],
+        newText,
+        ts.ScriptTarget.ES2015,
+        /*setParentNodes */ true,
+        ts.ScriptKind.TS
+    );
+
+    newText = applyTextChanges(newText, getCleanupChanges(sourceFile));
 
     writeFileSync(file[1], newText);
 }

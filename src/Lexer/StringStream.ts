@@ -32,9 +32,17 @@ export class StringStream {
      * Otherwise, undefined is returned.
      * @param match A character
      */
-    public eat(match: string): string | undefined {
-        if (this.str.charAt(this.pos) === match) return this.str.charAt(this.pos++);
-        return;
+    // public eat(match: string): string | undefined {
+    //     if (this.str.charAt(this.pos) === match) return this.str.charAt(this.pos++);
+    //     return;
+    // }
+
+    public eat(str: string) {
+        if (this.str.indexOf(str, this.pos) === this.pos) {
+            this.pos += str.length;
+            return true;
+        }
+        return false;
     }
 
     /**

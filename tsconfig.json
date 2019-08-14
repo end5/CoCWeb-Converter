@@ -10,7 +10,7 @@
         "noImplicitReturns": true,
     },
     "include": [
-        "src",
-        "tests"
-    ]
+        "src"
+    ],
+    "files": ["test/Run.ts", "tests/**/Run.ts"]
 }

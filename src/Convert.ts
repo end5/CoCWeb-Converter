@@ -77,6 +77,11 @@ export function convert(text: string, isIncluded: boolean) {
                 // console.log('Removing ' + token.text);
                 changes.push(textChange(token, ''));
             }
+            else if (token.text.startsWith('include')) {
+                // tokens.splice(index, 1);
+                // console.log('Removing ' + token.text);
+                changes.push(textChange(token, ''));
+            }
             else {
                 // Fix "for each"
                 let match = token.text.match(forEachRegex);
@@ -235,7 +240,7 @@ function removeMatchingBraces(tokens: Token[], startIndex: number): ts.TextChang
     }
 
     if (braceCounter !== 0)
-        throw new Error('Could not find matching closing brace. Mismatch count ' + braceCounter);
+        throw new Error(`Could not find matching closing brace starting from [${startIndex}] "${tokens[startIndex].text}". Mismatch count ${braceCounter}`);
 
     // Remove braces
     // tokens.splice(braceOpenIndex, 1);

@@ -8,14 +8,16 @@ const files: [string, string][] = [[_path + "test.as", _path + "test.ts"]];
 
 for (const file of files) {
 
-    let text = readFileSync(file[0]).toString();
+    const text = readFileSync(file[0]).toString();
 
     const changes = convert(text, false);
     for (const change of changes)
         console.log(JSON.stringify(text.substr(change.span.start, change.span.length)) + '\n> ' + JSON.stringify(change.newText));
-    text = applyTextChanges(text, changes);
+    const newText = applyTextChanges(text, changes);
+
+    console.log(JSON.stringify(newText.substr(0, 100)));
 
     // console.log(text.replace(/\n/g, '\\n').replace(/\r/g, '\\r'));
 
-    writeFileSync(file[1], text);
+    writeFileSync(file[1], newText);
 }

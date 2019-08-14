@@ -62,7 +62,9 @@ enum TokenSymbol {
     Escape = '\\',
     Return = '\r',
     Newline = '\n',
-    CommentStart = '/',
+    WindowsNewline = '\r\n',
+    ForwardSlash = '/',
+    Aterisk = '*',
     BraceOpen = '{',
     BraceClose = '}',
     Quote = "'",
@@ -72,84 +74,83 @@ enum TokenSymbol {
 }
 
 function tokenize(stream: StringStream, state: LexerState) {
+    if (
+        stream.eat(TokenSymbol.Newline) ||
+        stream.eat(TokenSymbol.WindowsNewline)
+    ) {
+        return TokenType.Newline;
+    }
     if (stream.eat(TokenSymbol.Tab) || stream.eat(TokenSymbol.Space)) {
         while (stream.eat(TokenSymbol.Tab) || stream.eat(TokenSymbol.Space)) { }
         return TokenType.Whitespace;
     }
-    else if (
-        stream.eat(TokenSymbol.Newline) ||
-        (stream.eat(TokenSymbol.Return) && stream.eat(TokenSymbol.Newline))
-    ) {
-        return TokenType.Newline;
-    }
     else if (stream.eat(TokenSymbol.DQuote)) {
         while (!stream.eos()) {
-            if (stream.eatWhileNot(TokenSymbol.DQuote)) {
-                // Pos moved. Check for escaped quotes.
-                stream.pos--;
-                if (stream.eat(TokenSymbol.Escape)) {
-                    stream.eat(TokenSymbol.DQuote);
-                }
-                else {
-                    // No escaped quote
-                    stream.pos++;
-                    stream.eat(TokenSymbol.DQuote);
+            if (stream.eatWhileNot(TokenSymbol.Escape, TokenSymbol.DQuote)) {
+                if (stream.eat(TokenSymbol.DQuote)) {
                     return TokenType.String;
+                }
+                else if (stream.eat(TokenSymbol.Escape)) {
+                    stream.pos++;
                 }
             }
             else {
-                // Pos didn't move. Error on quote not found.
-                if (!stream.eat(TokenSymbol.DQuote))
-                    throw new Error('Could not close quotes');
-                else
+                if (stream.eat(TokenSymbol.DQuote)) {
                     return TokenType.String;
+                }
+                else if (stream.eat(TokenSymbol.Escape)) {
+                    stream.pos++;
+                }
+                // Pos didn't move. Error because quote was not found.
+                else
+                    throw new Error('Could not close quotes starting on line ' + state.lineNum);
             }
         }
-        return TokenType.String;
+        throw new Error('Could not close quotes starting on line ' + state.lineNum);
     }
     else if (stream.eat(TokenSymbol.Quote)) {
         while (!stream.eos()) {
-            if (stream.eatWhileNot(TokenSymbol.Quote)) {
-                // Pos moved. Check for escaped quotes.
-                stream.pos--;
-                if (stream.eat(TokenSymbol.Escape)) {
-                    stream.eat(TokenSymbol.Quote);
-                }
-                else {
-                    // No escaped quote
-                    stream.pos++;
-                    stream.eat(TokenSymbol.Quote);
+            if (stream.eatWhileNot(TokenSymbol.Escape, TokenSymbol.Quote)) {
+                if (stream.eat(TokenSymbol.Quote)) {
                     return TokenType.String;
+                }
+                else if (stream.eat(TokenSymbol.Escape)) {
+                    stream.pos++;
                 }
             }
             else {
-                // Pos didn't move. Error on quote not found.
-                if (!stream.eat(TokenSymbol.Quote))
-                    throw new Error('Could not close quotes');
-                else
+                if (stream.eat(TokenSymbol.Quote)) {
                     return TokenType.String;
+                }
+                else if (stream.eat(TokenSymbol.Escape)) {
+                    stream.pos++;
+                }
+                // Pos didn't move. Error because quote was not found.
+                else
+                    throw new Error('Could not close quotes');
             }
         }
-        return TokenType.String;
+        throw new Error('Could not close quotes outer');
     }
     else if (stream.eat(TokenSymbol.BraceOpen))
         return TokenType.BraceOpen;
     else if (stream.eat(TokenSymbol.BraceClose))
         return TokenType.BraceClose;
-    else if (stream.eat(TokenSymbol.CommentStart)) {
+    // Comments
+    else if (stream.eat(TokenSymbol.ForwardSlash)) {
         // Block comment
-        if (stream.eat('*')) {
+        if (stream.eat(TokenSymbol.Aterisk)) {
             while (!stream.eos()) {
-                stream.eatWhileNot('*');
-                if (stream.eat('*')) {
-                    if (stream.eat('/'))
+                stream.eatWhileNot(TokenSymbol.Aterisk);
+                if (stream.eat(TokenSymbol.Aterisk)) {
+                    if (stream.eat(TokenSymbol.ForwardSlash))
                         return TokenType.Comment;
                 }
             }
             return TokenType.Comment;
         }
         // Line comment
-        else if (stream.eat('/')) {
+        else if (stream.eat(TokenSymbol.ForwardSlash)) {
             stream.eatWhileNot(TokenSymbol.Newline);
             return TokenType.Comment;
         }
@@ -161,7 +162,7 @@ function tokenize(stream: StringStream, state: LexerState) {
         TokenSymbol.Quote,
         TokenSymbol.BraceOpen,
         TokenSymbol.BraceClose,
-        TokenSymbol.CommentStart
+        TokenSymbol.ForwardSlash
     ))
         return TokenType.Code;
     return TokenType.Error;

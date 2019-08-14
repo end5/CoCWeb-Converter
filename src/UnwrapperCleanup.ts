@@ -7,13 +7,16 @@ export function getCleanupChanges(node: ts.SourceFile) {
 
     for (const statement of node.statements) {
         if (ts.isClassDeclaration(statement) && hasEmptyBody(statement)) {
-            const comments = lex(node.getText()).filter((token) => token.type === TokenType.Comment).join('\n');
+            const comments = lex(statement.getText())
+                .filter((token) => token.type === TokenType.Comment)
+                .map((token) => token.text)
+                .join('\n');
             changes.push(
                 // Remove class and replace it with any comments found inside of it
                 {
                     span: {
-                        start: node.getStart(),
-                        length: node.getWidth()
+                        start: statement.getStart(),
+                        length: statement.getWidth()
                     },
                     newText: comments
                 }

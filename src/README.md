@@ -6,6 +6,7 @@ Each stage must be completed on all files before the next stage.
 1. Convert the code - Each step needs requires a new AST
     1. Convert - Regular Expressions & Lexer - Convert AS3 to valid TS syntax
         Using the custom lexer, perform the following transforms on code tokens
+        Note: Lexer cannot handle unmatched quotes in regexp or xml.
         - Remove
             - `package` (also matching braces)
             - `import`
