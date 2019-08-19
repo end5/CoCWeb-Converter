@@ -11,7 +11,7 @@ export function fixMissingArgs(sourceFile: SourceFile, config: TransformConfig) 
     let changeOccured = false;
     let checkAgain = true;
     while (checkAgain) {
-        // log('Checking again');
+        console.log('Checking again');
         const methodsAndFunctions = [
             ...sourceFile.getFunctions(),
             ...sourceFile.getDescendantsOfKind(SyntaxKind.MethodDeclaration)

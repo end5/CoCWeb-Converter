@@ -1,4 +1,4 @@
-import { applyTextChanges } from "../../src/TextChange";
+import { applyTextChanges } from "../../src/TextChanger";
 
 const test = applyTextChanges('0123456789', [{
     span: {

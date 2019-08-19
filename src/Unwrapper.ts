@@ -1,7 +1,5 @@
 import * as ts from "typescript";
 import { TransformConfig } from "./Config";
-import { lex } from "./Lexer/Lexer";
-import { TokenType } from "./Lexer/Token";
 
 export function getClassChanges(node: ts.SourceFile, config: TransformConfig) {
     let changes: ts.TextChange[] = [];
@@ -103,6 +101,24 @@ function hasEmptyBody(node: ts.MethodDeclaration) {
         children[index + 2].kind === ts.SyntaxKind.CloseBraceToken && children[index + 2].getChildCount() === 0;
 }
 
+const commentRegex = /\/\*[\s\S]*?\*\/|\/\/.*/g;
+
+/**
+ * Returns a text change that replaces the text with any comments found inside of it.
+ * @param node
+ */
+export function replaceWithComments(node: ts.Node): ts.TextChange {
+    const comments = node.getText().match(commentRegex);
+    // Remove method and replace it with any comments found inside of it
+    return {
+        span: {
+            start: node.getStart(),
+            length: node.getWidth()
+        },
+        newText: comments ? comments.join('\n') : ''
+    };
+}
+
 /**
  * May change the method using one of the matching patterns listed below. Checked in order.
  * - Empty method -> Replace it with comments
@@ -117,17 +133,8 @@ function getMethodChanges(node: ts.MethodDeclaration, className: string, impleme
 
     // Method has an empty body
     if (hasEmptyBody(node)) {
-        const comments = lex(node.getText()).filter((token) => token.type === TokenType.Comment).join('\n');
-        return [
-            // Remove method and replace it with any comments found inside of it
-            {
-                span: {
-                    start: node.getStart(),
-                    length: node.getWidth()
-                },
-                newText: comments
-            }
-        ];
+        // Remove method and replace it with any comments found inside of it
+        return [replaceWithComments(node)];
     }
 
     // Method is actually the constructor
@@ -176,9 +183,9 @@ function getMethodChanges(node: ts.MethodDeclaration, className: string, impleme
                     if (modifier.kind === ts.SyntaxKind.PublicKeyword) {
                         newPreText += 'export';
                     }
-                    newText = newText.slice(0, modifier.getStart() - methodStart) +
-                        newText.slice(modifier.getEnd() - methodStart, newText.length);
                 }
+                if (node.modifiers.length > 0)
+                    newText = methodText.slice(node.modifiers[node.modifiers.length - 1].getEnd() - methodStart);
             }
             newText = leadingTrivia + newPreText + ' function ' + newText;
 

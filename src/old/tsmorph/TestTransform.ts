@@ -1,6 +1,6 @@
 import { Project, Node } from "ts-morph";
 import { readFileSync, writeFileSync } from "fs";
-import { convert } from "../../Convert";
+import { convert } from "../Convert";
 import { transform } from "./Transform2";
 import { TransformConfig } from "../../Config";
 import { logToConsole } from "./Log";

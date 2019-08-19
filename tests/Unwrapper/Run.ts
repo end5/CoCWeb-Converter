@@ -3,7 +3,7 @@ import * as ts from "typescript";
 import { convert } from "../../src/Convert";
 import { TransformConfig } from "../../src/Config";
 import { getClassChanges } from "../../src/Unwrapper";
-import { applyTextChanges } from "../../src/TextChange";
+import { applyTextChanges } from "../../src/TextChanger";
 
 const path = 'tests/Unwrapper/';
 
@@ -26,7 +26,7 @@ const config: TransformConfig = {
 for (const file of files) {
     const text = readFileSync(file[0]).toString();
 
-    const fixedText = applyTextChanges(text, convert(text, false));
+    const fixedText = applyTextChanges(text, convert(text, file[0], false));
 
     const sourceFile = ts.createSourceFile(
         file[0],
@@ -36,7 +36,10 @@ for (const file of files) {
         ts.ScriptKind.TS
     );
 
-    const newText = applyTextChanges(fixedText, getClassChanges(sourceFile, config));
+    const changes = getClassChanges(sourceFile, config);
+    for (const change of changes)
+        console.log(JSON.stringify(text.substr(change.span.start, change.span.length)) + '\n> ' + JSON.stringify(change.newText));
+    const newText = applyTextChanges(fixedText, changes);
 
     writeFileSync(file[1], newText);
 }

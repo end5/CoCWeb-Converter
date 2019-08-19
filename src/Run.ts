@@ -4,9 +4,9 @@ import { Project } from "ts-morph";
 import { TransformConfig } from "./Config";
 import { convert } from "./Convert";
 import { getClassChanges } from "./Unwrapper";
-import { applyTextChanges } from "./TextChange";
+import { applyTextChanges } from "./TextChanger";
 import { getCleanupChanges } from "./UnwrapperCleanUp";
-import { fixMissingArgs } from "./Fix";
+// import { fixMissingArgs } from "./Fix";
 
 function createSourceFile(path: string, text: string) {
     return ts.createSourceFile(
@@ -33,7 +33,7 @@ export function run(fileList: string[], config: TransformConfig, rename?: boolea
 
             curFile = file.replace('.as', '.ts');
 
-            let changes = convert(text, file.includes('includes'));
+            let changes = convert(text, file, file.includes('includes'));
             let newText = applyTextChanges(text, changes);
             let sourceFile = createSourceFile(curFile, newText);
 
@@ -84,16 +84,16 @@ export function run(fileList: string[], config: TransformConfig, rename?: boolea
     // Stage 3
     console.log('Stage 3 ...');
 
-    let foundProblem = true;
-    while (foundProblem) {
-        foundProblem = false;
-        for (const sourceFile of sourceFiles) {
-            console.log('Fixing ' + sourceFile.getFilePath());
+    // let foundProblem = true;
+    // while (foundProblem) {
+    //     foundProblem = false;
+    //     for (const sourceFile of sourceFiles) {
+    //         console.log('Fixing ' + sourceFile.getFilePath());
 
-            while (fixMissingArgs(sourceFile, config))
-                foundProblem = true;
-        }
-    }
+    //         while (fixMissingArgs(sourceFile, config))
+    //             foundProblem = true;
+    //     }
+    // }
 
     project.saveSync();
 

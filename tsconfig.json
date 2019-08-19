@@ -12,5 +12,6 @@
     "include": [
         "src"
     ],
-    "files": ["test/Run.ts", "tests/**/Run.ts"]
+    "files": ["test/Run.ts", "tests/**/Run.ts"],
+    "exclude": ["old"]
 }

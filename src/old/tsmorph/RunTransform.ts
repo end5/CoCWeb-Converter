@@ -1,6 +1,6 @@
 import { Project } from "ts-morph";
 import { readFileSync, writeFileSync, renameSync } from "fs";
-import { convert } from "../../Convert";
+import { convert } from "../Convert";
 import { transform, fixMissingArgs } from "./Transform2";
 import { walk } from "../../Walk";
 import { TransformConfig } from "../../Config";

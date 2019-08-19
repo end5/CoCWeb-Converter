@@ -1,3 +1,5 @@
 Build
 node_modules
 test
+tokenizer/bin
+tokenizer/external

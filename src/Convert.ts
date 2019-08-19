@@ -1,51 +1,6 @@
-import * as ts from "typescript";
-import { lex } from "./Lexer/Lexer";
-import { TokenType, Token } from "./Lexer/Token";
-
-// type ReplaceFunc = (match: string, ...args: string[]) => string;
-
-// function check(searchValue: string | RegExp, strOrFunc: string | ReplaceFunc) {
-//     return (match: string, ...args: string[]) => {
-//         if (match.split('\n').length > 1)
-//             console.error('Warning: Large match\nSearch Value: ' + searchValue + '\n' + match);
-
-//         if (typeof strOrFunc === 'string')
-//             return strOrFunc;
-//         else if (typeof strOrFunc === 'function')
-//             return strOrFunc(match, ...args);
-//         return '';
-//     };
-// }
-
-// function replace(text: string, searchValue: string | RegExp, replaceValue: string | ReplaceFunc): string {
-//     return text.replace(searchValue, check(searchValue, replaceValue));
-// }
-
-const forEachRegex = /^\s*for each\s*\(\s*(var )?([\w\d]+)\s*(?::\s*[\w\d*]+)? in/;
-const declareRegex = /^\s*(?:override\s+)?(public|protected|private|internal)\s+(static\s+)?(?:override\s+)?(function|var|class|const)/;
-
-const replacePairs: [RegExp, string][] = [
-    [/:\s*Function/g, ': () => void'],
-    [/:\s*Boolean/g, ': boolean'],
-    [/:\s*Number/g, ': number'],
-    [/:\s*int/g, ': number'],
-    [/:\s*String/g, ': string'],
-    [/:\s*void/g, ': void'],
-    [/:\s*Array/g, ': any[]'],
-    [/Vector.</g, 'Vector<'],
-    [/ is /g, ' instanceof '],
-    [/:\*/g, ': any'],  // This one is dangerous
-];
-
-function textChange(token: Token, newText: string) {
-    return {
-        span: {
-            start: token.pos,
-            length: token.text.length
-        },
-        newText
-    };
-}
+import { TokenType } from "./Token";
+import { Scanner } from "./Scanner";
+import { TokenChanger } from "./TextChanger";
 
 /**
  * Converts the text from AS3 to TS.
@@ -55,198 +10,234 @@ function textChange(token: Token, newText: string) {
  * @param text
  * @param isIncluded Was this file loaded by "includes"
  */
-export function convert(text: string, isIncluded: boolean) {
-    let changes: ts.TextChange[] = [];
-    const tokens = lex(text);
-    let token;
-    for (let index = 0; index < tokens.length; index++) {
-        token = tokens[index];
-        // console.log(index, token.text);
+export function convert(text: string, source: string, isIncluded: boolean) {
+    const scanner = new Scanner(text, source);
+    const changer = new TokenChanger(text);
 
-        if (token.type === TokenType.Code) {
-            if (token.text.startsWith('package')) {
-                // tokens.splice(index, 1);
-                // console.log('Removing ' + token.text);
-                changes = changes.concat(
-                    [textChange(token, '')],
-                    removeMatchingBraces(tokens, index)
-                );
-            }
-            else if (token.text.startsWith('import')) {
-                // tokens.splice(index, 1);
-                // console.log('Removing ' + token.text);
-                changes.push(textChange(token, ''));
-            }
-            else if (token.text.startsWith('include')) {
-                // tokens.splice(index, 1);
-                // console.log('Removing ' + token.text);
-                changes.push(textChange(token, ''));
+    while (!scanner.eos()) {
+        switch (scanner.peek().type) {
+            case TokenType.PACKAGE:
+                changer.add(scanner.consume());
+                if (scanner.match(TokenType.IDENTIFIER)) {
+                    changer.add(scanner.consume());
+                }
+                removeMatchingBraces(scanner, changer);
+                break;
+
+            case TokenType.IMPORT:
+                changer.add(scanner.consume(), '// import');
+                // while (
+                //     scanner.peek().type === TokenType.IDENTIFIER ||
+                //     scanner.peek().type === TokenType.DOT ||
+                //     scanner.peek().type === TokenType.MULT
+                // ) {
+                //     changer.replace('');
+                //     scanner.consume();
+                // }
+                break;
+
+            case TokenType.INCLUDE:
+                changer.add(scanner.consume(), '// include');
+                break;
+
+            case TokenType.FOR:
+                scanner.consume();
+                let isForEach = false;
+                if (scanner.match(TokenType.IDENTIFIER, 'each')) {
+                    changer.add(scanner.consume(), '');
+                    isForEach = true;
+                }
+
+                scanner.consume(TokenType.LEFTPAREN);
+
+                if (scanner.match(TokenType.VAR))
+                    changer.add(scanner.consume(), 'const');
+
+                scanner.consume(TokenType.IDENTIFIER);
+
+                if (scanner.match(TokenType.COLON))
+                    changer.add(scanner.consume(), '');
+
+                if (scanner.match(TokenType.IDENTIFIER))
+                    changer.add(scanner.consume(), '');
+
+                if (isForEach) {
+                    if (scanner.match(TokenType.IN))
+                        changer.add(scanner.consume(), 'of');
+                }
+
+                break;
+
+            case TokenType.PUBLIC:
+            case TokenType.PROTECTED:
+            case TokenType.PRIVATE:
+                handleDeclaration(scanner, changer, isIncluded);
+                break;
+
+            case TokenType.IDENTIFIER:
+                switch (scanner.peek().text) {
+                    case 'Vector':
+                        scanner.consume();
+                        if (scanner.match(TokenType.DOT)) {
+                            changer.add(scanner.consume());
+                        }
+                        break;
+                    case 'override':
+                    case 'internal':
+                        handleDeclaration(scanner, changer, isIncluded);
+                        break;
+                    default:
+                        scanner.consume();
+                }
+                break;
+
+            case TokenType.COLON:
+                scanner.consume();
+                if (scanner.match(TokenType.MULT)) {
+                    changer.add(scanner.consume(), 'any');
+                }
+                else if (scanner.match(TokenType.IDENTIFIER))
+                    switch (scanner.peek().text) {
+                        case 'Function':
+                            changer.add(scanner.consume(), '() => void');
+                            break;
+                        case 'Boolean':
+                            changer.add(scanner.consume(), 'boolean');
+                            break;
+                        case 'Number':
+                        case 'int':
+                            changer.add(scanner.consume(), 'number');
+                            break;
+                        case 'String':
+                            changer.add(scanner.consume(), 'string');
+                            break;
+                        case 'Array':
+                            changer.add(scanner.consume(), 'any[]');
+                            break;
+                        case 'Object':
+                            changer.add(scanner.consume(), 'Record<string, any>');
+                            break;
+                        default:
+                            scanner.consume();
+                    }
+                break;
+
+            case TokenType.IS:
+                changer.add(scanner.consume(), 'instanceof');
+                break;
+
+            default:
+                scanner.consume();
+        }
+    }
+
+    return changer.getChanges();
+}
+
+function handleDeclaration(scanner: Scanner, changer: TokenChanger, isIncluded?: boolean) {
+    // Remove override
+    if (scanner.match(TokenType.IDENTIFIER, 'override')) {
+        changer.add(scanner.consume());
+    }
+
+    const accessModifier = scanner.consume(TokenType.PUBLIC) ||
+        scanner.consume(TokenType.PROTECTED) ||
+        scanner.consume(TokenType.PRIVATE) ||
+        scanner.consume(TokenType.IDENTIFIER, 'internal');
+
+    const staticModifier = scanner.consume(TokenType.IDENTIFIER, 'static');
+
+    // Remove override
+    if (scanner.match(TokenType.IDENTIFIER, 'override')) {
+        changer.add(scanner.consume());
+    }
+
+    const declareType = scanner.consume(TokenType.FUNCTION) ||
+        scanner.consume(TokenType.VAR) ||
+        scanner.consume(TokenType.CLASS) ||
+        scanner.consume(TokenType.CONST);
+
+    if (declareType) {
+        if (declareType.type === TokenType.CLASS && accessModifier) {
+            if (accessModifier.type === TokenType.PUBLIC || accessModifier.text === 'internal') {
+                changer.add(accessModifier, 'export');
             }
             else {
-                // Fix "for each"
-                let match = token.text.match(forEachRegex);
-                if (match) {
-                    // token.text =
-                    //     'for(' +
-                    //     (match[1] ? 'const ' : '') +
-                    //     match[2] +
-                    //     ' of' +
-                    //     token.text.slice((match.index || 0) + match[0].length);
-                    changes.push(textChange(token,
-                        'for(' +
-                        (match[1] ? 'const ' : '') +
-                        match[2] +
-                        ' of' +
-                        token.text.slice((match.index || 0) + match[0].length)
-                    ));
-                }
-
-                match = token.text.match(declareRegex);
-                if (match) {
-
-                    // 1. public|protected|private|internal
-                    const accessModifier = match[1];
-                    // 2. static?
-                    const staticModifier = match[2] || '';
-                    // 3. function|var|class|const
-                    const type = match[3];
-
-                    // const restOfLine = token.text.slice((match.index || 0) + match[0].length);
-
-                    if (type === 'class') {
-                        if (accessModifier === 'public' || accessModifier === 'internal')
-                            // token.text = 'export ' + staticModifier + type + restOfLine;
-                            changes.push({
-                                newText: 'export ' + staticModifier + type,
-                                span: {
-                                    start: token.pos,
-                                    length: match[0].length
-                                }
-                            });
-                        else
-                            // token.text = staticModifier + type + restOfLine;
-                            changes.push({
-                                newText: staticModifier + type,
-                                span: {
-                                    start: token.pos,
-                                    length: match[0].length
-                                }
-                            });
-                    }
-                    else if (isIncluded) {
-                        if (type === 'function' || type === 'var' || type === 'const') {
-                            if (accessModifier === 'internal' || accessModifier === 'public')
-                                // token.text = 'export ' + type + restOfLine;
-                                changes.push({
-                                    newText: 'export ' + type,
-                                    span: {
-                                        start: token.pos,
-                                        length: match[0].length
-                                    }
-                                });
-                            else
-                                // token.text = type + restOfLine;
-                                changes.push({
-                                    newText: type,
-                                    span: {
-                                        start: token.pos,
-                                        length: match[0].length
-                                    }
-                                });
-                        }
+                changer.add(accessModifier);
+            }
+        }
+        else if (
+            declareType.type === TokenType.FUNCTION ||
+            declareType.type === TokenType.VAR ||
+            declareType.type === TokenType.CONST
+        ) {
+            if (isIncluded) {
+                // public | internal -> export
+                // protected | private -> ''
+                // static -> ''
+                // function | var | const -> function | var | const
+                if (accessModifier) {
+                    if (accessModifier.type === TokenType.PUBLIC || accessModifier.text === 'internal') {
+                        changer.add(accessModifier, 'export');
                     }
                     else {
-                        if (type === 'function' || type === 'var' || type === 'const') {
-                            if (accessModifier === 'internal')
-                                // token.text = 'public ' + staticModifier + restOfLine;
-                                changes.push({
-                                    newText: 'public ' + staticModifier,
-                                    span: {
-                                        start: token.pos,
-                                        length: match[0].length
-                                    }
-                                });
-                            else
-                                // token.text = accessModifier + ' ' + staticModifier + restOfLine;
-                                changes.push({
-                                    newText: accessModifier + ' ' + staticModifier,
-                                    span: {
-                                        start: token.pos,
-                                        length: match[0].length
-                                    }
-                                });
-                        }
+                        changer.add(accessModifier);
                     }
                 }
+                if (staticModifier)
+                    changer.add(staticModifier);
+            }
+            else {
+                // internal -> public
+                // public | protected | private -> public | protected | private
+                // static -> static
+                // function | var | const -> ''
+                if (accessModifier) {
+                    if (accessModifier.text === 'internal') {
+                        changer.add(accessModifier, 'public');
+                    }
 
-                for (const pair of replacePairs) {
-                    do {
-                        match = pair[0].exec(token.text);
-                        if (match)
-                            changes.push({
-                                newText: pair[1],
-                                span: {
-                                    start: token.pos + (match.index || 0),
-                                    length: match[0].length
-                                }
-                            });
-                    } while (match);
+                    changer.add(declareType);
                 }
             }
         }
     }
-
-    // return tokens.map((tkn) => tkn.text).join('');
-    return changes;
 }
 
-function removeMatchingBraces(tokens: Token[], startIndex: number): ts.TextChange[] {
+function removeMatchingBraces(scanner: Scanner, changer: TokenChanger) {
+    const startPos = scanner.pos;
+    const start = scanner.peek();
 
-    // console.log(tokens.reduce((count, token) => {
-    //     if (token.type === TokenType.BraceOpen)
-    //         count++;
-    //     else if (token.type === TokenType.BraceClose)
-    //         count--;
-    //     return count;
-    // }, 0) ? 'Mismatched braces' : 'Braces are ok');
-
-    let braceOpenIndex = startIndex;
     // Find first open brace index
-    if (tokens[braceOpenIndex].type !== TokenType.BraceOpen)
-        for (let index = startIndex; index < tokens.length; index++)
-            if (tokens[index].type === TokenType.BraceOpen) {
-                braceOpenIndex = index;
-                break;
-            }
+    scanner.eatWhileNot(TokenType.LEFTBRACE);
+    const leftBraceToken = scanner.consume();
 
     // Find matching close brace index
     let braceCounter = 1;
-    let braceCloseIndex = 0;
+    let rightBraceToken;
     // console.log('brace ' + braceCounter);
-    for (let index = braceOpenIndex + 1; index < tokens.length; index++) {
-        if (tokens[index].type === TokenType.BraceOpen) {
+    while (!scanner.eos()) {
+        if (scanner.consume(TokenType.LEFTBRACE)) {
             braceCounter++;
             // console.log('brace++ ' + braceCounter);
         }
-        else if (tokens[index].type === TokenType.BraceClose) {
+        else if (scanner.consume(TokenType.RIGHTBRACE)) {
             braceCounter--;
             // console.log('brace-- ' + braceCounter);
         }
 
         if (braceCounter === 0) {
-            braceCloseIndex = index;
+            rightBraceToken = scanner.peek();
+            scanner.pos = startPos;
             break;
         }
+        scanner.eatWhileNot(TokenType.LEFTBRACE, TokenType.RIGHTBRACE);
     }
 
-    if (braceCounter !== 0)
-        throw new Error(`Could not find matching closing brace starting from [${startIndex}] "${tokens[startIndex].text}". Mismatch count ${braceCounter}`);
+    if (!rightBraceToken)
+        throw new Error(`Could not find matching closing brace starting from [${start.start}] "${start.text}". Mismatch count ${braceCounter}`);
 
     // Remove braces
-    // tokens.splice(braceOpenIndex, 1);
-    // tokens.splice(breaceCloseIndex, 1);
-    return [
-        textChange(tokens[braceOpenIndex], ''),
-        textChange(tokens[braceCloseIndex], ''),
-    ];
+    changer.add(leftBraceToken);
+    changer.add(rightBraceToken);
 }

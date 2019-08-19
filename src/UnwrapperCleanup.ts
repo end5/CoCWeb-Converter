@@ -1,26 +1,13 @@
 import * as ts from "typescript";
-import { lex } from "./Lexer/Lexer";
-import { TokenType } from "./Lexer/Token";
+import { replaceWithComments } from "./Unwrapper";
 
 export function getCleanupChanges(node: ts.SourceFile) {
     const changes: ts.TextChange[] = [];
 
     for (const statement of node.statements) {
         if (ts.isClassDeclaration(statement) && hasEmptyBody(statement)) {
-            const comments = lex(statement.getText())
-                .filter((token) => token.type === TokenType.Comment)
-                .map((token) => token.text)
-                .join('\n');
-            changes.push(
-                // Remove class and replace it with any comments found inside of it
-                {
-                    span: {
-                        start: statement.getStart(),
-                        length: statement.getWidth()
-                    },
-                    newText: comments
-                }
-            );
+            // Remove class and replace it with any comments found inside of it
+            changes.push(replaceWithComments(statement));
         }
     }
 
