@@ -4,28 +4,39 @@ Each stage is one pass through the text.
 Each stage must be completed on all files before the next stage.
 
 1. Convert the code - Each step needs requires a new AST
-    1. Convert - Regular Expressions & Lexer - Convert AS3 to valid TS syntax
-        Using the custom lexer, perform the following transforms on code tokens
-        Note: Lexer cannot handle unmatched quotes in regexp or xml.
+    1. Convert - Adobe Flex Scanner - Convert AS3 to valid TS syntax
         - Remove
-            - `package` (also matching braces)
+            - `package` (including matching braces)
+        - Comment
             - `import`
+            - `include`
         - Replace with TS equivalent
-            - `for each`
-                `/^\s*for each\s*\(\s*(var )?([\w\d]+)\s*(?::\s*[\w\d*]+)? in/`
-            - `function`, `var`, `class`, `const` (entire declaration)
-                `/^\s*(?:override\s+)?(public|protected|private|internal)\s+(static\s+)?(?:override\s+)?(function|var|class|const)/`
-        - Replace the former regexp match with the latter string
-            - `/:\s*Function/g` -> `: () => void`
-            - `/:\s*Boolean/g` -> `: boolean`
-            - `/:\s*Number/g` -> `: number`
-            - `/:\s*int/g` -> `: number`
-            - `/:\s*String/g` -> `: string`
-            - `/:\s*void/g` -> `: void`
-            - `/:\s*Array/g` -> `: any[]`
-            - `/Vector.</g` -> `Vector<`
-            - `/ is /g` -> ` instanceof `
-            - `/:\*/g` -> `: any`
+            - `for each ( var <1> : <2> in`
+                - Remove `each`, `:`, `<2>`
+                - `var` -> `const`
+                - `in` -> `of`
+            - `override (public | protected | private | internal) static override (function | var | class | const)`
+                - Remove `override`
+                - `class`
+                    - `public`, `internal` -> `export`
+                    - Remove `protected`, `private`
+                - `function`, `var`, `const`
+                    - Convert to function
+                        - `public`, `internal` -> `export`
+                        - Remove `protected`, `private`, `static`
+                    - Inside class
+                        - `internal` -> `public`
+                        - Remove `function`, `var`, `const`
+            - `: Function` -> `: () => void`
+            - `: Boolean` -> `: boolean`
+            - `: Number` -> `: number`
+            - `: int` -> `: number`
+            - `: String` -> `: string`
+            - `: void` -> `: void`
+            - `: Array` -> `: any[]`
+            - `: *` -> `: any`
+            - `Vector.<` -> `Vector<`
+            - `is` -> ` instanceof `
 
     2. Unwrap - TS Compiler API - Unwrap classes using the following steps
         1. Remove empty methods
