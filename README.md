@@ -16,7 +16,7 @@ Setup instructions
 
 Things the transpiler does
 
-Convert - Adobe Flex Scanner - Convert AS3 to valid TS syntax
+- Convert - Adobe Flex Scanner - Convert AS3 to valid TS syntax
     - Comment
         - `package` (remove matching braces)
         - `import`
@@ -48,13 +48,12 @@ Convert - Adobe Flex Scanner - Convert AS3 to valid TS syntax
         - `: *` -> `: any`
         - `Vector.<` -> `Vector<`
         - `is` -> ` instanceof `
-
     - Fix Constructor - TS Compiler - Rename Actionscript constructors to `constructor`
 
-Unpack - TS Compiler API - Unpack methods in classes to functions
+- Unpack - TS Compiler API - Unpack methods in classes to functions
 
-Cleanup - TS Compiler API - Remove empty classes and methods
+- Cleanup - TS Compiler API - Remove empty classes and methods
 
-Format And Import - ts-morph - Formats code and add missing imports
+- Format And Import - ts-morph - Formats code and add missing imports
 
-Fix Missing Args - ts-morph - Add missing parameters to methods and functions
+- Fix Missing Args - ts-morph - Add missing parameters to methods and functions
