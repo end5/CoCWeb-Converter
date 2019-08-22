@@ -12,14 +12,6 @@
         "typescript": "^3.5.1"
     },
     "scripts": {
-        "test all": "ts-node tests/All/Run.ts",
-        "test convert": "ts-node tests/Convert/Run.ts",
-        "test scanner": "ts-node tests/Scanner/Run.ts",
-        "test text change": "ts-node tests/TextChange/Run.ts",
-        "test unwrapper": "ts-node tests/Unwrapper/Run.ts",
-        "test unwrapper cleanup": "ts-node tests/UnwrapperCleanup/Run.ts",
-        "test fix": "ts-node tests/Fix/Run.ts",
-        "run": "ts-node test/Run.ts",
         "compile java": "javac -cp tokenizer/external/* -d tokenizer/bin tokenizer/src/app/App.java"
     },
     "repository": {
