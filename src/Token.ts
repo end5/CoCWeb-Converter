@@ -5,6 +5,8 @@ export interface Token {
     // text: string;
 }
 
+// From https://github.com/apache/flex-sdk/blob/master/modules/asc/src/java/macromedia/asc/parser/Tokens.java
+
 export enum TokenType {
     FIRST = 1,
     EOS = FIRST,

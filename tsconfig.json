@@ -9,9 +9,6 @@
         "forceConsistentCasingInFileNames": true,
         "noImplicitReturns": true,
     },
-    "include": [
-        "src"
-    ],
     "exclude": [
         "src/old",
         "tokenizer",

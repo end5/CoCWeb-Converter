@@ -3,7 +3,7 @@ import * as ts from "typescript";
 import { CoCConfig } from "./CoCConfig";
 import { walk } from "../src/Walk";
 import { unpackMethodChanges } from "../src/UnpackMethods";
-import { applyTextChanges } from "../src/TextChanger";
+import { applyTextChanges } from "../src/TextChanges";
 
 const fileOrDir = process.argv[2];
 
