@@ -51,11 +51,10 @@ Convert - Adobe Flex Scanner - Convert AS3 to valid TS syntax
 
     - Fix Constructor - TS Compiler - Rename Actionscript constructors to `constructor`
 
-* Needs to be reimplemented
-* Unpack - TS Compiler API - Unpack methods in classes to functions
+Unpack - TS Compiler API - Unpack methods in classes to functions
 
-* Cleanup - TS Compiler API - Remove empty classes and methods
+Cleanup - TS Compiler API - Remove empty classes and methods
 
-Format and add missing imports - ts-morph
+Format And Import - ts-morph - Formats code and add missing imports
 
-Add missing parameters to methods and functions - ts-morph
+Fix Missing Args - ts-morph - Add missing parameters to methods and functions
