@@ -6,16 +6,17 @@ export class Scanner {
     public readonly text: string;
     private list: Token[];
 
-    public constructor(text: string, source: string) {
-        this.text = text;
+    public constructor(source: string) {
         const child = child_process.spawnSync(
-            'java', ['-cp', 'tokenzier/external/*;tokenizer/bin;', 'app.App', source]
+            'java', ['-cp', 'tokenizer/external/*;tokenizer/bin;', 'app.App', source]
         );
 
         if (child.stderr)
             console.error(child.stderr.toString());
 
-        this.list = JSON.parse(child.stdout.toString());
+        const obj: { list: Token[], text: string } = JSON.parse(child.stdout.toString());
+        this.list = obj.list;
+        this.text = obj.text;
     }
 
     /**
@@ -41,11 +42,20 @@ export class Scanner {
     public consume(type: TokenType, str?: string): Token | undefined;
     public consume(type?: TokenType, str?: string) {
         if (!type || (type && this.list[this.pos].type === type)) {
-            if (!str || (str && this.list[this.pos].text === str)) {
+            if (!str || (str && this.getTokenText() === str)) {
                 return this.list[this.pos++];
             }
         }
         return;
+    }
+
+    /**
+     * Get the text of the token. No token is current token.
+     * @param token
+     */
+    public getTokenText(token?: Token) {
+        token = token || this.list[this.pos];
+        return this.text.substr(token.start, token.length);
     }
 
     /**
@@ -55,7 +65,7 @@ export class Scanner {
      */
     public match(type: TokenType, str?: string) {
         if (this.list[this.pos].type === type) {
-            if (!str || (str && this.list[this.pos].text === str)) {
+            if (!str || (str && this.getTokenText() === str)) {
                 return true;
             }
         }

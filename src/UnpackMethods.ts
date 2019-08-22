@@ -1,7 +1,7 @@
 import * as ts from "typescript";
 import { TransformConfig } from "./Config";
 
-export function getClassChanges(node: ts.SourceFile, config: TransformConfig) {
+export function unpackMethodChanges(node: ts.SourceFile, config: TransformConfig) {
     let changes: ts.TextChange[] = [];
 
     for (const statement of node.statements) {
@@ -76,50 +76,6 @@ function getHeritageTextChanges(node: ts.HeritageClause, config: TransformConfig
 }
 
 /**
- * Check if the method node has an empty body ignoring whitespace.
- * @param node
- */
-function hasEmptyBody(node: ts.MethodDeclaration) {
-    const body = node.body;
-    if (!body) return false;
-
-    // Looking for token pattern
-    // OpenBrace - no children
-    // SyntaxList - no children
-    // CloseBrace - no children
-
-    const children = body.getChildren();
-    let index = 0;
-    while (index < children.length && children[index].kind !== ts.SyntaxKind.OpenBraceToken)
-        index++;
-
-    if (index + 2 >= body.getChildCount())
-        return false;
-
-    return children[index].kind === ts.SyntaxKind.OpenBraceToken && children[index].getChildCount() === 0 &&
-        children[index + 1].kind === ts.SyntaxKind.SyntaxList && children[index + 1].getChildCount() === 0 &&
-        children[index + 2].kind === ts.SyntaxKind.CloseBraceToken && children[index + 2].getChildCount() === 0;
-}
-
-const commentRegex = /\/\*[\s\S]*?\*\/|\/\/.*/g;
-
-/**
- * Returns a text change that replaces the text with any comments found inside of it.
- * @param node
- */
-export function replaceWithComments(node: ts.Node): ts.TextChange {
-    const comments = node.getText().match(commentRegex);
-    // Remove method and replace it with any comments found inside of it
-    return {
-        span: {
-            start: node.getStart(),
-            length: node.getWidth()
-        },
-        newText: comments ? comments.join('\n') : ''
-    };
-}
-
-/**
  * May change the method using one of the matching patterns listed below. Checked in order.
  * - Empty method -> Replace it with comments
  * - Method name === Class name -> Rename to 'constructor'
@@ -130,26 +86,6 @@ export function replaceWithComments(node: ts.Node): ts.TextChange {
  * @param config
  */
 function getMethodChanges(node: ts.MethodDeclaration, className: string, implementsNames: string[], config: TransformConfig): ts.TextChange[] {
-
-    // Method has an empty body
-    if (hasEmptyBody(node)) {
-        // Remove method and replace it with any comments found inside of it
-        return [replaceWithComments(node)];
-    }
-
-    // Method is actually the constructor
-    if (className === node.name.getText()) {
-        return [
-            // Convert to constructor
-            {
-                span: {
-                    start: node.name.getStart(),
-                    length: node.name.getWidth()
-                },
-                newText: 'constructor'
-            }
-        ];
-    }
 
     // Convert methods to functions if not on an ignore list
     if (className && !~config.ignoreClasses.indexOf(className)) {

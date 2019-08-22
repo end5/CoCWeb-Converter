@@ -12,6 +12,9 @@
     "include": [
         "src"
     ],
-    "files": ["test/Run.ts", "tests/**/Run.ts"],
-    "exclude": ["old"]
+    "exclude": [
+        "src/old",
+        "tokenizer",
+        "test"
+    ]
 }

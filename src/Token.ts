@@ -1,7 +1,8 @@
 export interface Token {
     type: TokenType;
     start: number;
-    text: string;
+    length: number;
+    // text: string;
 }
 
 export enum TokenType {

@@ -1,11 +1,6 @@
-// import { walk } from "../../src/Walk";
-import { TransformConfig } from "../../src/Config";
-import { run } from "../../src/Run";
+import { TransformConfig } from "../src/Config";
 
-// const fileList = walk('tests/Corruption-of-Champions-master');
-const fileList = ['tests/All/test.as'];
-
-const config: TransformConfig = {
+export const CoCConfig: TransformConfig = {
     removeExtends: ['BaseContent', 'Utils', 'NPCAwareContent', 'AbstractLakeContent', 'BazaarAbstractContent', 'AbstractBoatContent', 'AbstractFarmContent', 'TelAdreAbstractContent', 'Enum', 'DefaultDict'],
 
     ignoreClasses: [],
@@ -19,5 +14,3 @@ const config: TransformConfig = {
         { name: 'monster', type: 'Monster' }
     ],
 };
-
-run(fileList, config);
