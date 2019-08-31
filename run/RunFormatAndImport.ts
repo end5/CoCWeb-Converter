@@ -1,5 +1,6 @@
 import { existsSync, lstatSync } from "fs";
 import { Project } from "ts-morph";
+import { walk } from "../src/Walk";
 
 const fileOrDir = process.argv[2];
 
@@ -10,8 +11,14 @@ const project = new Project({
     }
 });
 
-if (existsSync(fileOrDir) && lstatSync(fileOrDir).isDirectory())
-    project.addExistingDirectory(fileOrDir);
+// All .ts found in recursive search or tsconfig.json or file.ts
+if (existsSync(fileOrDir) && lstatSync(fileOrDir).isDirectory()) {
+    const fileList = walk(fileOrDir).filter((file) => file.endsWith('.ts'));
+    for (const file of fileList)
+        project.addExistingSourceFile(file);
+}
+else if (fileOrDir.endsWith('tsconfig.json'))
+    project.addSourceFilesFromTsConfig(fileOrDir);
 else
     project.addExistingSourceFile(fileOrDir);
 

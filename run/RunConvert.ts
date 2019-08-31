@@ -12,7 +12,7 @@ if (existsSync(fileOrDir) && lstatSync(fileOrDir).isDirectory())
 for (const file of fileList) {
     console.log('Converting "' + file + '"');
 
-    let newText = convert(file, file.includes('includes'));
+    let newText = convert(file);
 
     newText = fixConstructor(file, newText);
 

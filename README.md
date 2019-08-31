@@ -14,20 +14,28 @@
 10. Type `npm run "compile java"`
 
 #### Running
-Type in the console `ts-node run/<file in run folder> <file or directory>`
+Converting code
+ - `ts-node run/RunConvert.ts <file or directory>`
+Format and add missing imports
+ - `ts-node run/RunFormatAndImport.ts <file or directory or tsconfig.json>`
+Unpack methods to functions
+ - `ts-node run/RunUnpackMethods.ts <file or directory>`
+Add specified names found in methods and functions as parameters to the definition and all calls
+ - `ts-node run/RunFixMissingArgs.ts <file or directory or tsconfig.json> <name1> <type1> <name2> <type2> ...`
 
 #### Things the transpiler does
 Convert - Adobe Flex Scanner - Convert AS3 to valid TS syntax. **DOES NOT CATCH EVERYTHING**
-- Comment out
+- Removes
     - `package` (removes matching braces)
     - `import`
     - `include`
+    - `use namespace kGAMECLASS`
 - Replace with TS equivalent
     - `for each ( var <1> : <2> in`
         - Remove `each`, `:`, `<2>`
         - `var` -> `const`
         - `in` -> `of`
-    - `override (public | protected | private | internal) static override (function | var | class | const)`
+    - `override (public | protected | private | internal) static override (function | var | class | const | interface)`
         - Remove `override`
         - `class`
             - `public`, `internal` -> `export`

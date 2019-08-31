@@ -1,7 +1,7 @@
 import { writeFileSync, existsSync, lstatSync, readFileSync } from "fs";
 import * as ts from "typescript";
 import { walk } from "../src/Walk";
-import { unpackMethods } from "../src/UnpackMethods";
+import { removeExtends } from "../src/RemoveExtends";
 import { applyTextChanges } from "../src/TextChanges";
 
 const fileOrDir = process.argv[2];
@@ -17,7 +17,7 @@ for (const file of fileList) {
     const text = readFileSync(file).toString();
 
     const sourceFile = ts.createSourceFile(file, text, ts.ScriptTarget.ES2015, true, ts.ScriptKind.TS);
-    const changes = unpackMethods(sourceFile, ignoreList);
+    const changes = removeExtends(sourceFile, ignoreList);
     const newText = applyTextChanges(text, changes);
 
     writeFileSync(file, newText);

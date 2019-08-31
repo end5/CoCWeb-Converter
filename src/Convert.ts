@@ -15,54 +15,89 @@ function replaceToken(token: Token, text?: string): ts.TextChange {
 
 /**
  * Converts the text from AS3 to TS.
- * Removes 'package' and 'import'.
+ * Removes 'package', 'import' and 'use'.
  * Converts types.
- * If file is loaded by "includes", convert all methods to functions.
+ * Anything found outside a class is converted to standalone
  * @param text
- * @param isIncluded Was this file loaded by "includes"
  */
-export function convert(source: string, isIncluded: boolean) {
+export function convert(source: string) {
     const scanner = new Scanner(source);
     const changes: ts.TextChange[] = [];
 
+    let foundPackage = false;
+    let insidePackage = 0;
+    let foundClass = false;
+    let insideClass = 0;
+    let braceCounter = 0;
+
     while (!scanner.eos()) {
         switch (scanner.peek().type) {
-            case TokenType.PACKAGE:
-                changes.push(replaceToken(scanner.consume(), '// package'));
-                // Unsure if want to parse info
-                // changes.push(replaceToken(scanner.consume()));
-                // while (!scanner.eos()) {
-                //     if (scanner.match(TokenType.IDENTIFIER)) {
-                //         changes.push(replaceToken(scanner.consume()));
-                //         if (scanner.match(TokenType.DOT)) {
-                //             changes.push(replaceToken(scanner.consume()));
-                //             continue;
-                //         }
-                //     }
-                //     break;
-                // }
+            case TokenType.LEFTBRACE:
+                braceCounter++;
+                if (foundPackage) {
+                    foundPackage = false;
+                    insidePackage = braceCounter;
+                    changes.push(replaceToken(scanner.consume()));
+                    break;
+                }
 
-                removeMatchingBraces(scanner, changes);
+                scanner.consume();
+                if (foundClass) {
+                    foundClass = false;
+                    insideClass = braceCounter;
+                }
+
+                break;
+
+            case TokenType.RIGHTBRACE:
+                if (braceCounter === insidePackage) {
+                    insidePackage = -1;
+                    changes.push(replaceToken(scanner.consume()));
+                    break;
+                }
+
+                scanner.consume();
+                if (braceCounter === insideClass)
+                    insideClass = -1;
+                braceCounter--;
+
+                break;
+
+            case TokenType.PACKAGE:
+                // changes.push(replaceToken(scanner.consume(), '// package'));
+                changes.push(replaceToken(scanner.consume()));
+
+                removeIdentifierChain(scanner, changes);
+
+                foundPackage = true;
+                // removeMatchingBraces(scanner, changes);
                 break;
 
             case TokenType.IMPORT:
-                changes.push(replaceToken(scanner.consume(), '// import'));
-                // Unsure if want to parse info
-                // changes.push(replaceToken(scanner.consume()));
-                // while (!scanner.eos()) {
-                //     if (scanner.match(TokenType.IDENTIFIER) || scanner.match(TokenType.MULT)) {
-                //         changes.push(replaceToken(scanner.consume()));
-                //         if (scanner.match(TokenType.DOT)) {
-                //             changes.push(replaceToken(scanner.consume()));
-                //             continue;
-                //         }
-                //         else if (scanner.match(TokenType.SEMICOLON)) {
-                //             changes.push(replaceToken(scanner.consume()));
-                //             break;
-                //         }
-                //     }
-                //     break;
-                // }
+                // changes.push(replaceToken(scanner.consume(), '// import'));
+                changes.push(replaceToken(scanner.consume()));
+
+                removeIdentifierChain(scanner, changes);
+
+                break;
+
+            case TokenType.USE:
+                // changes.push(replaceToken(scanner.consume(), '// use'));
+                // Simplifying this because only "use namespace kGAMECLASS" is found in CoC Vanilla code
+                changes.push(replaceToken(scanner.consume())); // use
+                changes.push(replaceToken(scanner.consume())); // namespace
+                changes.push(replaceToken(scanner.consume())); // kGAMECLASS
+
+                break;
+
+            case TokenType.CLASS:
+                foundClass = true;
+                scanner.consume();
+                break;
+
+            case TokenType.XMLMARKUP:
+                const token = scanner.consume();
+                changes.push(replaceToken(token, '`' + scanner.text.substr(token.start, token.length) + '`'));
                 break;
 
             case TokenType.INCLUDE:
@@ -73,7 +108,7 @@ export function convert(source: string, isIncluded: boolean) {
                 scanner.consume();
                 let isForEach = false;
                 if (scanner.match(TokenType.IDENTIFIER, 'each')) {
-                    changes.push(replaceToken(scanner.consume(), ''));
+                    changes.push(replaceToken(scanner.consume()));
                     isForEach = true;
                 }
 
@@ -85,10 +120,10 @@ export function convert(source: string, isIncluded: boolean) {
                 scanner.consume(TokenType.IDENTIFIER);
 
                 if (scanner.match(TokenType.COLON))
-                    changes.push(replaceToken(scanner.consume(), ''));
+                    changes.push(replaceToken(scanner.consume()));
 
                 if (scanner.match(TokenType.IDENTIFIER))
-                    changes.push(replaceToken(scanner.consume(), ''));
+                    changes.push(replaceToken(scanner.consume()));
 
                 if (isForEach) {
                     if (scanner.match(TokenType.IN))
@@ -100,7 +135,7 @@ export function convert(source: string, isIncluded: boolean) {
             case TokenType.PUBLIC:
             case TokenType.PROTECTED:
             case TokenType.PRIVATE:
-                handleDeclaration(scanner, changes, isIncluded);
+                handleDeclaration(scanner, changes, !~insideClass);
                 break;
 
             case TokenType.IDENTIFIER:
@@ -113,7 +148,7 @@ export function convert(source: string, isIncluded: boolean) {
                         break;
                     case 'override':
                     case 'internal':
-                        handleDeclaration(scanner, changes, isIncluded);
+                        handleDeclaration(scanner, changes, !~insideClass);
                         break;
                     default:
                         scanner.consume();
@@ -163,7 +198,24 @@ export function convert(source: string, isIncluded: boolean) {
     return applyTextChanges(scanner.text, changes);
 }
 
-function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], isIncluded?: boolean) {
+function removeIdentifierChain(scanner: Scanner, changes: ts.TextChange[]) {
+    if (scanner.match(TokenType.IDENTIFIER)) {
+        changes.push(replaceToken(scanner.consume()));
+        while (scanner.match(TokenType.DOT)) {
+            changes.push(replaceToken(scanner.consume()));
+            if (scanner.match(TokenType.IDENTIFIER)) {
+                changes.push(replaceToken(scanner.consume()));
+            }
+            else if (scanner.match(TokenType.MULT)) {
+                changes.push(replaceToken(scanner.consume()));
+            }
+        }
+    }
+    if (scanner.match(TokenType.SEMICOLON))
+        changes.push(replaceToken(scanner.consume()));
+}
+
+function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], insideClass?: boolean) {
     // Remove override
     if (scanner.match(TokenType.IDENTIFIER, 'override')) {
         changes.push(replaceToken(scanner.consume()));
@@ -187,6 +239,7 @@ function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], isInclude
     const declareType = scanner.consume(TokenType.FUNCTION) ||
         scanner.consume(TokenType.VAR) ||
         scanner.consume(TokenType.CLASS) ||
+        scanner.consume(TokenType.INTERFACE) ||
         scanner.consume(TokenType.CONST);
 
     if (declareType) {
@@ -203,7 +256,7 @@ function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], isInclude
             declareType.type === TokenType.VAR ||
             declareType.type === TokenType.CONST
         ) {
-            if (isIncluded) {
+            if (insideClass) {
                 // public | internal -> export
                 // protected | private -> ''
                 // static -> ''
@@ -236,42 +289,42 @@ function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], isInclude
     }
 }
 
-function removeMatchingBraces(scanner: Scanner, changes: ts.TextChange[]) {
-    const startPos = scanner.pos;
-    const startToken = scanner.peek();
+// function removeMatchingBraces(scanner: Scanner, changes: ts.TextChange[]) {
+//     const startPos = scanner.pos;
+//     const startToken = scanner.peek();
 
-    // Find first open brace index
-    scanner.eatWhileNot(TokenType.LEFTBRACE);
-    const leftBraceToken = scanner.consume();
+//     // Find first open brace index
+//     scanner.eatWhileNot(TokenType.LEFTBRACE);
+//     const leftBraceToken = scanner.consume();
 
-    // Find matching close brace index
-    let braceCounter = 1;
-    let rightBraceToken;
-    // console.log('brace ' + braceCounter);
-    while (!scanner.eos()) {
-        if (scanner.match(TokenType.LEFTBRACE)) {
-            braceCounter++;
-            // console.log('brace++ ' + braceCounter);
-            scanner.consume();
-        }
-        else if (scanner.match(TokenType.RIGHTBRACE)) {
-            braceCounter--;
-            // console.log('brace-- ' + braceCounter);
-            rightBraceToken = scanner.consume();
-        }
+//     // Find matching close brace index
+//     let braceCounter = 1;
+//     let rightBraceToken;
+//     // console.log('brace ' + braceCounter);
+//     while (!scanner.eos()) {
+//         if (scanner.match(TokenType.LEFTBRACE)) {
+//             braceCounter++;
+//             // console.log('brace++ ' + braceCounter);
+//             scanner.consume();
+//         }
+//         else if (scanner.match(TokenType.RIGHTBRACE)) {
+//             braceCounter--;
+//             // console.log('brace-- ' + braceCounter);
+//             rightBraceToken = scanner.consume();
+//         }
 
-        if (braceCounter === 0)
-            break;
+//         if (braceCounter === 0)
+//             break;
 
-        scanner.eatWhileNot(TokenType.LEFTBRACE, TokenType.RIGHTBRACE);
-    }
+//         scanner.eatWhileNot(TokenType.LEFTBRACE, TokenType.RIGHTBRACE);
+//     }
 
-    if (!rightBraceToken)
-        throw new Error(`Could not find matching closing brace starting from [${startToken.start}] "${scanner.getTokenText(startToken)}". Mismatch count ${braceCounter}`);
+//     if (!rightBraceToken)
+//         throw new Error(`Could not find matching closing brace starting from [${startToken.start}] "${scanner.getTokenText(startToken)}". Mismatch count ${braceCounter}`);
 
-    scanner.pos = startPos;
+//     scanner.pos = startPos;
 
-    // Remove braces
-    changes.push(replaceToken(leftBraceToken));
-    changes.push(replaceToken(rightBraceToken));
-}
+//     // Remove braces
+//     changes.push(replaceToken(leftBraceToken));
+//     changes.push(replaceToken(rightBraceToken));
+// }

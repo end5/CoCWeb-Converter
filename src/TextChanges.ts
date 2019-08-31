@@ -1,13 +1,16 @@
 import * as ts from "typescript";
 
+/**
+ * Creates new text by applying changes in order.
+ * Changes need to be in descending order.
+ * @param text
+ * @param changes
+ */
 export function applyTextChanges(text: string, changes: ts.TextChange[]) {
-    // console.log(changes);
-    const sortedChanges = changes.sort((a, b) => a.span.start - b.span.start);
-    // const sortedChanges = changes;
     let index = 0;
     let newText = '';
     let postText = '';
-    for (const change of sortedChanges) {
+    for (const change of changes) {
         // console.log(index, newText, postText);
         if (change.span.start >= text.length)
             postText += change.newText;

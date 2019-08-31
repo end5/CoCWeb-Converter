@@ -1,13 +1,12 @@
 import { SyntaxKind, TypeGuards, SourceFile, MethodDeclaration, FunctionDeclaration } from "ts-morph";
-import { TransformConfig, ParameterStruct } from "./Config";
 
 /**
  * Compares each function call to its definition and adds any missing parameters.
  * Returns true if a change happened.
  * @param sourceFile
- * @param config
+ * @param paramPairs
  */
-export function fixMissingArgs(sourceFile: SourceFile, config: TransformConfig) {
+export function fixMissingArgs(sourceFile: SourceFile, paramPairs: [string, string][]) {
     let changeOccured = false;
     let checkAgain = true;
     while (checkAgain) {
@@ -36,7 +35,7 @@ export function fixMissingArgs(sourceFile: SourceFile, config: TransformConfig) 
 
         checkAgain = false;
         for (const method of methodsAndFunctions) {
-            checkAgain = checkAgain || fixBody(method, config.identiferToParamPairs);
+            checkAgain = checkAgain || fixBody(method, paramPairs);
         }
     }
     return changeOccured;
@@ -46,21 +45,21 @@ export function fixMissingArgs(sourceFile: SourceFile, config: TransformConfig) 
  * Checks for identifiers in the body that are in params and adds it as a parameter to the method.
  * Returns true if a change occured.
  * @param method
- * @param params
+ * @param paramPairs
  */
-function fixBody(method: MethodDeclaration | FunctionDeclaration, params: ParameterStruct[]) {
+function fixBody(method: MethodDeclaration | FunctionDeclaration, paramPairs: [string, string][]) {
     let changed = false;
     const methodBody = method.getBody();
     if (methodBody) {
         const identifiers = methodBody.getDescendantsOfKind(SyntaxKind.Identifier);
 
-        for (const paramStruct of params) {
+        for (const paramPair of paramPairs) {
             // Fix monster parameter requirement
-            const match = identifiers.find((node) => node.getText() === paramStruct.name);
-            if (match && !method.getParameters().find((param) => param.getName() === paramStruct.name)) {
+            const match = identifiers.find((node) => node.getText() === paramPair[0]);
+            if (match && !method.getParameters().find((param) => param.getName() === paramPair[0])) {
                 changed = true;
                 // log('    Found ' + paramStruct.name);
-                method.insertParameter(0, paramStruct);
+                method.insertParameter(0, { name: paramPair[0], type: paramPair[1] });
             }
         }
     }
