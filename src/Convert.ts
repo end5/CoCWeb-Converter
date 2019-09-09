@@ -13,6 +13,14 @@ function replaceToken(token: Token, text?: string): ts.TextChange {
     };
 }
 
+interface State {
+    foundPackage: boolean;
+    insidePackage: number;
+    foundClass: boolean;
+    insideClass: number;
+    braceCounter: number;
+}
+
 /**
  * Converts the text from AS3 to TS.
  * Removes 'package', 'import' and 'use'.
@@ -23,43 +31,44 @@ function replaceToken(token: Token, text?: string): ts.TextChange {
 export function convert(source: string) {
     const scanner = new Scanner(source);
     const changes: ts.TextChange[] = [];
-
-    let foundPackage = false;
-    let insidePackage = 0;
-    let foundClass = false;
-    let insideClass = 0;
-    let braceCounter = 0;
+    const state: State = {
+        foundPackage: false,
+        insidePackage: -1,
+        foundClass: false,
+        insideClass: -1,
+        braceCounter: 0
+    };
 
     while (!scanner.eos()) {
         switch (scanner.peek().type) {
             case TokenType.LEFTBRACE:
-                braceCounter++;
-                if (foundPackage) {
-                    foundPackage = false;
-                    insidePackage = braceCounter;
+                state.braceCounter++;
+                if (state.foundPackage) {
+                    state.foundPackage = false;
+                    state.insidePackage = state.braceCounter;
                     changes.push(replaceToken(scanner.consume()));
                     break;
                 }
 
                 scanner.consume();
-                if (foundClass) {
-                    foundClass = false;
-                    insideClass = braceCounter;
+                if (state.foundClass) {
+                    state.foundClass = false;
+                    state.insideClass = state.braceCounter;
                 }
 
                 break;
 
             case TokenType.RIGHTBRACE:
-                if (braceCounter === insidePackage) {
-                    insidePackage = -1;
+                if (state.braceCounter === state.insidePackage) {
+                    state.insidePackage = -1;
                     changes.push(replaceToken(scanner.consume()));
                     break;
                 }
 
                 scanner.consume();
-                if (braceCounter === insideClass)
-                    insideClass = -1;
-                braceCounter--;
+                if (state.braceCounter === state.insideClass)
+                    state.insideClass = -1;
+                state.braceCounter--;
 
                 break;
 
@@ -69,7 +78,7 @@ export function convert(source: string) {
 
                 removeIdentifierChain(scanner, changes);
 
-                foundPackage = true;
+                state.foundPackage = true;
                 // removeMatchingBraces(scanner, changes);
                 break;
 
@@ -91,7 +100,7 @@ export function convert(source: string) {
                 break;
 
             case TokenType.CLASS:
-                foundClass = true;
+                state.foundClass = true;
                 scanner.consume();
                 break;
 
@@ -135,7 +144,7 @@ export function convert(source: string) {
             case TokenType.PUBLIC:
             case TokenType.PROTECTED:
             case TokenType.PRIVATE:
-                handleDeclaration(scanner, changes, !~insideClass);
+                handleDeclaration(scanner, changes, state);
                 break;
 
             case TokenType.IDENTIFIER:
@@ -148,7 +157,7 @@ export function convert(source: string) {
                         break;
                     case 'override':
                     case 'internal':
-                        handleDeclaration(scanner, changes, !~insideClass);
+                        handleDeclaration(scanner, changes, state);
                         break;
                     default:
                         scanner.consume();
@@ -215,7 +224,7 @@ function removeIdentifierChain(scanner: Scanner, changes: ts.TextChange[]) {
         changes.push(replaceToken(scanner.consume()));
 }
 
-function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], insideClass?: boolean) {
+function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], state: State) {
     // Remove override
     if (scanner.match(TokenType.IDENTIFIER, 'override')) {
         changes.push(replaceToken(scanner.consume()));
@@ -226,15 +235,9 @@ function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], insideCla
         scanner.consume(TokenType.PRIVATE) ||
         scanner.consume(TokenType.IDENTIFIER, 'internal');
 
-    let staticModifier;
-    while (scanner.match(TokenType.IDENTIFIER)) {
-        staticModifier = scanner.consume(TokenType.IDENTIFIER, 'static');
-
-        // Remove override and virtual
-        if (!staticModifier)
-            changes.push(replaceToken(scanner.consume()));
-
-    }
+    const modifiers = [];
+    while (scanner.match(TokenType.IDENTIFIER))
+        modifiers.push(scanner.consume());
 
     const declareType = scanner.consume(TokenType.FUNCTION) ||
         scanner.consume(TokenType.VAR) ||
@@ -243,23 +246,35 @@ function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], insideCla
         scanner.consume(TokenType.CONST);
 
     if (declareType) {
-        if (declareType.type === TokenType.CLASS && accessModifier) {
-            if (accessModifier.type === TokenType.PUBLIC || scanner.getTokenText(accessModifier) === 'internal') {
-                changes.push(replaceToken(accessModifier, 'export'));
+        if (declareType.type === TokenType.CLASS) {
+            state.foundClass = true;
+            // public | internal -> export
+            // protected | private -> ''
+            // static -> static
+            // override | virtual | final -> ''
+            // class -> class
+            if (accessModifier) {
+                if (accessModifier.type === TokenType.PUBLIC || scanner.getTokenText(accessModifier) === 'internal') {
+                    changes.push(replaceToken(accessModifier, 'export'));
+                }
+                else {
+                    changes.push(replaceToken(accessModifier));
+                }
             }
-            else {
-                changes.push(replaceToken(accessModifier));
-            }
+
+            for (const modifier of modifiers)
+                if (scanner.getTokenText(modifier) !== 'static')
+                    changes.push(replaceToken(modifier));
         }
         else if (
             declareType.type === TokenType.FUNCTION ||
             declareType.type === TokenType.VAR ||
             declareType.type === TokenType.CONST
         ) {
-            if (insideClass) {
+            if (!~state.insideClass) {
                 // public | internal -> export
                 // protected | private -> ''
-                // static -> ''
+                // static | override | virtual | final -> ''
                 // function | var | const -> function | var | const
                 if (accessModifier) {
                     if (accessModifier.type === TokenType.PUBLIC || scanner.getTokenText(accessModifier) === 'internal') {
@@ -269,18 +284,24 @@ function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], insideCla
                         changes.push(replaceToken(accessModifier));
                     }
                 }
-                if (staticModifier)
-                    changes.push(replaceToken(staticModifier));
+
+                for (const modifier of modifiers)
+                    changes.push(replaceToken(modifier));
             }
             else {
                 // internal -> public
                 // public | protected | private -> public | protected | private
                 // static -> static
+                // override | virtual | final -> ''
                 // function | var | const -> ''
                 if (accessModifier) {
                     if (scanner.getTokenText(accessModifier) === 'internal') {
                         changes.push(replaceToken(accessModifier, 'public'));
                     }
+
+                    for (const modifier of modifiers)
+                        if (scanner.getTokenText(modifier) !== 'static')
+                            changes.push(replaceToken(modifier));
 
                     changes.push(replaceToken(declareType));
                 }
