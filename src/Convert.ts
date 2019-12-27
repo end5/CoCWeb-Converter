@@ -18,6 +18,8 @@ interface State {
     insidePackage: number;
     foundClass: boolean;
     insideClass: number;
+    foundConfig: Token | undefined;
+    insideConfig: number;
     braceCounter: number;
 }
 
@@ -26,7 +28,7 @@ interface State {
  * Removes 'package', 'import' and 'use'.
  * Converts types.
  * Anything found outside a class is converted to standalone
- * @param text
+ * @param source File path
  */
 export function convert(source: string) {
     const scanner = new Scanner(source);
@@ -36,6 +38,8 @@ export function convert(source: string) {
         insidePackage: -1,
         foundClass: false,
         insideClass: -1,
+        foundConfig: undefined,
+        insideConfig: -1,
         braceCounter: 0
     };
 
@@ -50,15 +54,29 @@ export function convert(source: string) {
                     break;
                 }
 
-                scanner.consume();
+                const leftBraceToken = scanner.consume();
                 if (state.foundClass) {
                     state.foundClass = false;
                     state.insideClass = state.braceCounter;
                 }
 
+                if (state.foundConfig) {
+                    if (scanner.text.substring(state.foundConfig.start, leftBraceToken.start).includes('\n')) {
+                        changes.push(replaceToken(leftBraceToken, '// {'));
+                    }
+                    state.foundConfig = undefined;
+                    state.insideConfig = state.braceCounter;
+                }
+
                 break;
 
             case TokenType.RIGHTBRACE:
+                if (state.insideConfig >= 0 && state.braceCounter === state.insideConfig) {
+                    state.insideConfig = -1;
+                    changes.push(replaceToken(scanner.consume(), '// }'));
+                    break;
+                }
+
                 if (state.braceCounter === state.insidePackage) {
                     state.insidePackage = -1;
                     changes.push(replaceToken(scanner.consume()));
@@ -124,15 +142,12 @@ export function convert(source: string) {
                 scanner.consume(TokenType.LEFTPAREN);
 
                 if (scanner.match(TokenType.VAR))
-                    changes.push(replaceToken(scanner.consume(), 'const'));
+                    changes.push(replaceToken(scanner.consume(), 'let'));
 
                 scanner.consume(TokenType.IDENTIFIER);
 
-                if (scanner.match(TokenType.COLON))
-                    changes.push(replaceToken(scanner.consume()));
-
-                if (scanner.match(TokenType.IDENTIFIER))
-                    changes.push(replaceToken(scanner.consume()));
+                if (scanner.consume(TokenType.COLON))
+                    replaceType(scanner, changes);
 
                 if (isForEach) {
                     if (scanner.match(TokenType.IN))
@@ -159,6 +174,12 @@ export function convert(source: string) {
                     case 'internal':
                         handleDeclaration(scanner, changes, state);
                         break;
+                    case 'CONFIG':
+                        state.foundConfig = scanner.consume();
+                        changes.push(replaceToken(state.foundConfig, '// CONFIG'));
+
+                        break;
+
                     default:
                         scanner.consume();
                 }
@@ -166,33 +187,7 @@ export function convert(source: string) {
 
             case TokenType.COLON:
                 scanner.consume();
-                if (scanner.match(TokenType.MULT)) {
-                    changes.push(replaceToken(scanner.consume(), 'any'));
-                }
-                else if (scanner.match(TokenType.IDENTIFIER))
-                    switch (scanner.getTokenText()) {
-                        case 'Function':
-                            changes.push(replaceToken(scanner.consume(), '() => void'));
-                            break;
-                        case 'Boolean':
-                            changes.push(replaceToken(scanner.consume(), 'boolean'));
-                            break;
-                        case 'Number':
-                        case 'int':
-                            changes.push(replaceToken(scanner.consume(), 'number'));
-                            break;
-                        case 'String':
-                            changes.push(replaceToken(scanner.consume(), 'string'));
-                            break;
-                        case 'Array':
-                            changes.push(replaceToken(scanner.consume(), 'any[]'));
-                            break;
-                        case 'Object':
-                            changes.push(replaceToken(scanner.consume(), 'Record<string, any>'));
-                            break;
-                        default:
-                            scanner.consume();
-                    }
+                replaceType(scanner, changes);
                 break;
 
             case TokenType.IS:
@@ -201,10 +196,54 @@ export function convert(source: string) {
 
             default:
                 scanner.consume();
+                break;
+
         }
     }
 
     return applyTextChanges(scanner.text, changes);
+}
+
+function replaceType(scanner: Scanner, changes: ts.TextChange[]) {
+    switch (scanner.getTokenText()) {
+        case 'Function':
+            changes.push(replaceToken(scanner.consume(), '() => void'));
+            break;
+
+        case 'Boolean':
+            changes.push(replaceToken(scanner.consume(), 'boolean'));
+            break;
+
+        case 'Number':
+        case 'int':
+            changes.push(replaceToken(scanner.consume(), 'number'));
+            break;
+
+        case 'uint':
+            changes.push(replaceToken(scanner.consume(), 'number'));
+            break;
+
+        case 'String':
+            changes.push(replaceToken(scanner.consume(), 'string'));
+            break;
+
+        case 'Array':
+            changes.push(replaceToken(scanner.consume(), 'any[]'));
+            break;
+
+        case 'Object':
+            changes.push(replaceToken(scanner.consume(), 'Record<string, any>'));
+            break;
+
+        case '*':
+            changes.push(replaceToken(scanner.consume(), 'any'));
+            break;
+
+        default:
+            scanner.consume();
+            break;
+
+    }
 }
 
 function removeIdentifierChain(scanner: Scanner, changes: ts.TextChange[]) {
@@ -239,14 +278,14 @@ function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], state: St
     while (scanner.match(TokenType.IDENTIFIER))
         modifiers.push(scanner.consume());
 
-    const declareType = scanner.consume(TokenType.FUNCTION) ||
+    const declareToken = scanner.consume(TokenType.FUNCTION) ||
         scanner.consume(TokenType.VAR) ||
         scanner.consume(TokenType.CLASS) ||
         scanner.consume(TokenType.INTERFACE) ||
         scanner.consume(TokenType.CONST);
 
-    if (declareType) {
-        if (declareType.type === TokenType.CLASS) {
+    if (declareToken) {
+        if (declareToken.type === TokenType.CLASS || declareToken.type === TokenType.INTERFACE) {
             state.foundClass = true;
             // public | internal -> export
             // protected | private -> ''
@@ -267,9 +306,9 @@ function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], state: St
                     changes.push(replaceToken(modifier));
         }
         else if (
-            declareType.type === TokenType.FUNCTION ||
-            declareType.type === TokenType.VAR ||
-            declareType.type === TokenType.CONST
+            declareToken.type === TokenType.FUNCTION ||
+            declareToken.type === TokenType.VAR ||
+            declareToken.type === TokenType.CONST
         ) {
             if (!~state.insideClass) {
                 // public | internal -> export
@@ -303,7 +342,7 @@ function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], state: St
                         if (scanner.getTokenText(modifier) !== 'static')
                             changes.push(replaceToken(modifier));
 
-                    changes.push(replaceToken(declareType));
+                    changes.push(replaceToken(declareToken));
                 }
             }
         }
