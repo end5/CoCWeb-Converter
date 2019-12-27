@@ -133,10 +133,10 @@ export function convert(source: string) {
 
             case TokenType.FOR:
                 scanner.consume();
-                let isForEach = false;
+                // let isForEach = false;
                 if (scanner.match(TokenType.IDENTIFIER, 'each')) {
                     changes.push(replaceToken(scanner.consume()));
-                    isForEach = true;
+                    // isForEach = true;
                 }
 
                 scanner.consume(TokenType.LEFTPAREN);
@@ -146,13 +146,16 @@ export function convert(source: string) {
 
                 scanner.consume(TokenType.IDENTIFIER);
 
-                if (scanner.consume(TokenType.COLON))
-                    replaceType(scanner, changes);
-
-                if (isForEach) {
-                    if (scanner.match(TokenType.IN))
-                        changes.push(replaceToken(scanner.consume(), 'of'));
+                // remove colon and type
+                if (scanner.match(TokenType.COLON)) {
+                    changes.push(replaceToken(scanner.consume()));
+                    changes.push(replaceToken(scanner.consume()));
                 }
+
+                // if (isForEach) {
+                //     if (scanner.match(TokenType.IN))
+                //         changes.push(replaceToken(scanner.consume(), 'of'));
+                // }
 
                 break;
 
