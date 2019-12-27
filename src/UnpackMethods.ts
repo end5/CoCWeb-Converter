@@ -5,34 +5,43 @@ export function unpackMethods(node: ts.SourceFile, ignoreList: string[]) {
 
     for (const statement of node.statements) {
         if (ts.isClassDeclaration(statement)) {
-            changes = changes.concat(methodSearch(statement, ignoreList));
+            changes = changes.concat(memberSearch(statement, ignoreList));
         }
     }
 
     return changes;
 }
 
-function methodSearch(node: ts.ClassDeclaration, ignoreList: string[]) {
+function memberSearch(node: ts.ClassDeclaration, ignoreList: string[]) {
     const changes: ts.TextChange[] = [];
 
-    let change;
     const postChanges = [];
     // Fix methods
     for (const member of node.members) {
+        let change;
         if (ts.isMethodDeclaration(member)) {
-            change = methodChanges(member, ignoreList);
-            if (change.length > 0) {
-                changes.push(change[0]);
-                postChanges.push(change[1]);
-            }
-            // changes = changes.concat(getMethodChanges(member, className, implementsNames, config));
+            change = memberChanges(member, ignoreList, 'function');
         }
+        else if (ts.isPropertyDeclaration(member)) {
+            change = memberChanges(member, ignoreList, 'let');
+        }
+        // else if (ts.isGetAccessorDeclaration(member)) {
+        //     change = memberChanges(member, ignoreList, '/* >?get */ function');
+        // }
+        // else if (ts.isSetAccessorDeclaration(member)) {
+        //     change = memberChanges(member, ignoreList, '/* >?set */ function');
+        // }
+        if (change && change.length > 0) {
+            changes.push(change[0]);
+            postChanges.push(change[1]);
+        }
+        // changes = changes.concat(getMethodChanges(member, className, implementsNames, config));
     }
 
     return changes.concat(postChanges);
 }
 
-function methodChanges(node: ts.MethodDeclaration, ignoreList: string[]): ts.TextChange[] {
+function memberChanges(node: ts.MethodDeclaration | ts.PropertyDeclaration | ts.GetAccessorDeclaration | ts.SetAccessorDeclaration, ignoreList: string[], type: string): ts.TextChange[] {
 
     // Convert method to function
     if (!~ignoreList.indexOf(node.name.getText())) {
@@ -50,13 +59,13 @@ function methodChanges(node: ts.MethodDeclaration, ignoreList: string[]): ts.Tex
         if (node.modifiers) {
             for (const modifier of node.modifiers) {
                 if (modifier.kind === ts.SyntaxKind.PublicKeyword) {
-                    newPreText += 'export';
+                    newPreText += 'export ';
                 }
             }
             if (node.modifiers.length > 0)
                 newText = methodText.slice(node.modifiers[node.modifiers.length - 1].getEnd() - methodStart);
         }
-        newText = leadingTrivia + newPreText + ' function ' + newText;
+        newText = leadingTrivia + newPreText + type + newText;
 
         return [
             // Remove method
