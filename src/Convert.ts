@@ -187,7 +187,7 @@ export class Converter {
     private interfaceScope() {
         switch (this.scanner.peek().type) {
             case TokenType.FUNCTION:
-                this.changes.push(replaceToken(this.scanner.consume(), 'public'));
+                this.changes.push(replaceToken(this.scanner.consume()));
                 break;
         }
     }

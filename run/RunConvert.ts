@@ -1,6 +1,6 @@
 import { writeFileSync, renameSync, existsSync, lstatSync } from "fs";
 import { walk } from "../src/Walk";
-import { convert } from "../src/Convert";
+import { Converter } from "../src/Convert";
 import { fixConstructor } from "../src/FixConstructor";
 
 const fileOrDir = process.argv[2];
@@ -12,7 +12,7 @@ if (existsSync(fileOrDir) && lstatSync(fileOrDir).isDirectory())
 for (const file of fileList) {
     console.log('Converting "' + file + '"');
 
-    let newText = convert(file);
+    let newText = new Converter(file).convert();
 
     newText = fixConstructor(file, newText);
 
