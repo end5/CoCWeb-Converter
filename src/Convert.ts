@@ -13,14 +13,13 @@ function replaceToken(token: Token, text?: string): ts.TextChange {
     };
 }
 
+type ScopeType = 'program' | 'package' | 'class' | 'interface';
+
 interface State {
-    foundPackage: boolean;
-    insidePackage: number;
-    foundClass: boolean;
-    insideClass: number;
-    foundConfig: Token | undefined;
-    insideConfig: number;
     braceCounter: number;
+    scope: { type: ScopeType, depth: number }[];
+    newScope: { type: ScopeType, token: Token } | undefined;
+    rightBraceMod: { depth: number, replace: string }[];
 }
 
 /**
@@ -30,126 +29,200 @@ interface State {
  * Anything found outside a class is converted to standalone
  * @param source File path
  */
-export function convert(source: string) {
-    const scanner = new Scanner(source);
-    const changes: ts.TextChange[] = [];
-    const state: State = {
-        foundPackage: false,
-        insidePackage: -1,
-        foundClass: false,
-        insideClass: -1,
-        foundConfig: undefined,
-        insideConfig: -1,
-        braceCounter: 0
+export class Converter {
+    private scanner: Scanner;
+    private changes: ts.TextChange[] = [];
+    private state: State = {
+        braceCounter: 0,
+        scope: [],
+        newScope: undefined,
+        rightBraceMod: []
     };
 
-    while (!scanner.eos()) {
-        switch (scanner.peek().type) {
-            case TokenType.LEFTBRACE:
-                state.braceCounter++;
-                if (state.foundPackage) {
-                    state.foundPackage = false;
-                    state.insidePackage = state.braceCounter;
-                    changes.push(replaceToken(scanner.consume()));
+    public constructor(source: string) {
+        this.scanner = new Scanner(source);
+    }
+
+    public convert() {
+        let pos;
+        while (!this.scanner.eos()) {
+            pos = this.scanner.pos;
+            // Scope does NOT match how scope is handled in the language
+            switch (this.getScope()) {
+                case 'program':
+                    this.programScope();
                     break;
-                }
+                case 'package':
+                    this.packageScope();
+                    break;
+                case 'interface':
+                    this.interfaceScope();
+                    break;
+                case 'class':
+                    this.classScope();
+                    break;
+            }
+            switch (this.scanner.peek().type) {
+                case TokenType.LEFTBRACE:
+                    this.state.braceCounter++;
+                    const leftBrace = this.scanner.consume();
 
-                const leftBraceToken = scanner.consume();
-                if (state.foundClass) {
-                    state.foundClass = false;
-                    state.insideClass = state.braceCounter;
-                }
+                    if (this.state.newScope) {
+                        // console.log('scope: ' + this.getScope() + ' -> ' + this.state.newScope.type);
+                        if (this.state.newScope.type === 'package')
+                            this.changes.push(replaceToken(leftBrace));
 
-                if (state.foundConfig) {
-                    if (scanner.text.substring(state.foundConfig.start, leftBraceToken.start).includes('\n')) {
-                        changes.push(replaceToken(leftBraceToken, '// {'));
+                        this.state.scope.push({ type: this.state.newScope.type, depth: this.state.braceCounter })
+                        this.state.newScope = undefined;
                     }
-                    state.foundConfig = undefined;
-                    state.insideConfig = state.braceCounter;
-                }
 
-                break;
-
-            case TokenType.RIGHTBRACE:
-                if (state.insideConfig >= 0 && state.braceCounter === state.insideConfig) {
-                    state.insideConfig = -1;
-                    changes.push(replaceToken(scanner.consume(), '// }'));
                     break;
-                }
 
-                if (state.braceCounter === state.insidePackage) {
-                    state.insidePackage = -1;
-                    changes.push(replaceToken(scanner.consume()));
+                case TokenType.RIGHTBRACE:
+                    const rightBrace = this.scanner.consume();
+                    if (this.state.scope.length > 0) {
+                        const scope = this.state.scope[this.state.scope.length - 1];
+
+                        if (this.state.rightBraceMod.length > 0) {
+                            const rightBraceMod = this.state.rightBraceMod[this.state.rightBraceMod.length - 1];
+                            if (rightBraceMod.depth === this.state.braceCounter) {
+                                this.changes.push(replaceToken(rightBrace, rightBraceMod.replace));
+                                this.state.rightBraceMod.pop();
+                            }
+                        }
+
+                        if (scope.depth === this.state.braceCounter) {
+                            if (scope.type === 'package')
+                                this.changes.push(replaceToken(rightBrace));
+
+                            this.state.scope.pop();
+                            // console.log('scope: ' + this.getScope() + ' <- ' + scope.type);
+                        }
+
+                    }
+                    this.state.braceCounter--;
                     break;
-                }
 
-                scanner.consume();
-                if (state.braceCounter === state.insideClass)
-                    state.insideClass = -1;
-                state.braceCounter--;
+                case TokenType.COLON:
+                    this.scanner.consume();
+                    this.replaceType();
+                    break;
 
-                break;
+            }
 
+            if (pos === this.scanner.pos)
+                this.scanner.pos++;
+
+        }
+
+        return applyTextChanges(this.scanner.text, this.changes);
+    }
+
+    private getScope() {
+        if (this.state.scope.length > 0)
+            return this.state.scope[this.state.scope.length - 1].type;
+        return 'program';
+    }
+
+    private programScope() {
+        switch (this.scanner.peek().type) {
             case TokenType.PACKAGE:
                 // changes.push(replaceToken(scanner.consume(), '// package'));
-                changes.push(replaceToken(scanner.consume()));
+                const packageToken = this.scanner.consume();
+                this.changes.push(replaceToken(packageToken));
 
-                removeIdentifierChain(scanner, changes);
+                this.removeIdentifierChain();
 
-                state.foundPackage = true;
+                this.state.newScope = { type: 'package', token: packageToken };
                 // removeMatchingBraces(scanner, changes);
                 break;
+        }
+    }
 
+    private packageScope() {
+        switch (this.scanner.peek().type) {
             case TokenType.IMPORT:
                 // changes.push(replaceToken(scanner.consume(), '// import'));
-                changes.push(replaceToken(scanner.consume()));
+                this.changes.push(replaceToken(this.scanner.consume()));
 
-                removeIdentifierChain(scanner, changes);
+                this.removeIdentifierChain();
 
                 break;
 
             case TokenType.USE:
                 // changes.push(replaceToken(scanner.consume(), '// use'));
                 // Simplifying this because only "use namespace kGAMECLASS" is found in CoC Vanilla code
-                changes.push(replaceToken(scanner.consume())); // use
-                changes.push(replaceToken(scanner.consume())); // namespace
-                changes.push(replaceToken(scanner.consume())); // kGAMECLASS
+                this.changes.push(replaceToken(this.scanner.consume())); // use
+                this.changes.push(replaceToken(this.scanner.consume())); // namespace
+                this.changes.push(replaceToken(this.scanner.consume())); // kGAMECLASS
 
                 break;
 
             case TokenType.CLASS:
-                state.foundClass = true;
-                scanner.consume();
-                break;
-
-            case TokenType.XMLMARKUP:
-                const token = scanner.consume();
-                changes.push(replaceToken(token, '`' + scanner.text.substr(token.start, token.length) + '`'));
+                this.state.newScope = { type: 'class', token: this.scanner.consume() };
                 break;
 
             case TokenType.INCLUDE:
-                changes.push(replaceToken(scanner.consume(), '// include'));
+                this.changes.push(replaceToken(this.scanner.consume(), '// include'));
+                break;
+
+            case TokenType.PUBLIC:
+            case TokenType.PROTECTED:
+            case TokenType.PRIVATE:
+            case TokenType.FUNCTION:
+                this.declarationInPackage();
+                break;
+
+            case TokenType.IDENTIFIER:
+                switch (this.scanner.getTokenText()) {
+                    case 'override':
+                    case 'internal':
+                        this.declarationInPackage();
+                        break;
+                }
+                break;
+        }
+    }
+
+    private interfaceScope() {
+        switch (this.scanner.peek().type) {
+            case TokenType.FUNCTION:
+                this.changes.push(replaceToken(this.scanner.consume(), 'public'));
+                break;
+        }
+    }
+
+    private classScope() {
+        switch (this.scanner.peek().type) {
+
+            case TokenType.XMLMARKUP:
+                const token = this.scanner.consume();
+                this.changes.push(replaceToken(token, '`' + this.scanner.text.substr(token.start, token.length) + '`'));
+                break;
+
+            case TokenType.INCLUDE:
+                this.changes.push(replaceToken(this.scanner.consume(), '// include'));
                 break;
 
             case TokenType.FOR:
-                scanner.consume();
+                this.scanner.consume();
                 // let isForEach = false;
-                if (scanner.match(TokenType.IDENTIFIER, 'each')) {
-                    changes.push(replaceToken(scanner.consume()));
+                if (this.scanner.match(TokenType.IDENTIFIER, 'each')) {
+                    this.changes.push(replaceToken(this.scanner.consume()));
                     // isForEach = true;
                 }
 
-                scanner.consume(TokenType.LEFTPAREN);
+                this.scanner.consume(TokenType.LEFTPAREN);
 
-                if (scanner.match(TokenType.VAR))
-                    changes.push(replaceToken(scanner.consume(), 'let'));
+                if (this.scanner.match(TokenType.VAR))
+                    this.changes.push(replaceToken(this.scanner.consume(), 'let'));
 
-                scanner.consume(TokenType.IDENTIFIER);
+                this.scanner.consume(TokenType.IDENTIFIER);
 
                 // remove colon and type
-                if (scanner.match(TokenType.COLON)) {
-                    changes.push(replaceToken(scanner.consume()));
-                    changes.push(replaceToken(scanner.consume()));
+                if (this.scanner.match(TokenType.COLON)) {
+                    this.changes.push(replaceToken(this.scanner.consume()));
+                    this.changes.push(replaceToken(this.scanner.consume()));
                 }
 
                 // if (isForEach) {
@@ -162,232 +235,199 @@ export function convert(source: string) {
             case TokenType.PUBLIC:
             case TokenType.PROTECTED:
             case TokenType.PRIVATE:
-                handleDeclaration(scanner, changes, state);
+                this.declarationInClass();
                 break;
 
             case TokenType.IDENTIFIER:
-                switch (scanner.getTokenText()) {
-                    case 'Vector':
-                        scanner.consume();
-                        if (scanner.match(TokenType.DOT)) {
-                            changes.push(replaceToken(scanner.consume()));
-                        }
-                        break;
+                switch (this.scanner.getTokenText()) {
                     case 'override':
                     case 'internal':
-                        handleDeclaration(scanner, changes, state);
+                        this.declarationInClass();
                         break;
+
+                    case 'Vector':
+                        this.replaceType();
+                        break;
+
                     case 'CONFIG':
-                        state.foundConfig = scanner.consume();
-                        changes.push(replaceToken(state.foundConfig, '// CONFIG'));
+                        const config = this.scanner.consume();
+                        this.changes.push(replaceToken(config, '// CONFIG'));
+
+                        while (this.scanner.consume(TokenType.DOUBLECOLON) || this.scanner.consume(TokenType.IDENTIFIER));
+
+                        if (this.scanner.match(TokenType.LEFTBRACE)) {
+                            const leftBrace = this.scanner.peek();
+                            if (this.scanner.text.substring(config.start, leftBrace.start).includes('\n'))
+                                this.changes.push(replaceToken(leftBrace, '// {'));
+
+                            this.state.rightBraceMod.push({ depth: this.state.braceCounter + 1, replace: '// }' });
+                        }
 
                         break;
 
-                    default:
-                        scanner.consume();
                 }
-                break;
-
-            case TokenType.COLON:
-                scanner.consume();
-                replaceType(scanner, changes);
                 break;
 
             case TokenType.IS:
-                changes.push(replaceToken(scanner.consume(), 'instanceof'));
+                this.changes.push(replaceToken(this.scanner.consume(), 'instanceof'));
                 break;
 
-            default:
-                scanner.consume();
+            case TokenType.SEMICOLON:
+                this.scanner.consume();
+                if (this.scanner.match(TokenType.LEFTBRACE)) {
+                    const leftBrace = this.scanner.peek();
+                    this.changes.push(replaceToken(leftBrace, '// {'));
+                    this.state.rightBraceMod.push({ depth: this.state.braceCounter + 1, replace: '// }' });
+                }
                 break;
-
         }
     }
 
-    return applyTextChanges(scanner.text, changes);
-}
+    private replaceType() {
+        switch (this.scanner.getTokenText()) {
+            case 'Function':
+                this.changes.push(replaceToken(this.scanner.consume(), '() => void'));
+                break;
 
-function replaceType(scanner: Scanner, changes: ts.TextChange[]) {
-    switch (scanner.getTokenText()) {
-        case 'Function':
-            changes.push(replaceToken(scanner.consume(), '() => void'));
-            break;
+            case 'Boolean':
+                this.changes.push(replaceToken(this.scanner.consume(), 'boolean'));
+                break;
 
-        case 'Boolean':
-            changes.push(replaceToken(scanner.consume(), 'boolean'));
-            break;
+            case 'Number':
+            case 'int':
+                this.changes.push(replaceToken(this.scanner.consume(), 'number'));
+                break;
 
-        case 'Number':
-        case 'int':
-            changes.push(replaceToken(scanner.consume(), 'number'));
-            break;
+            case 'uint':
+                this.changes.push(replaceToken(this.scanner.consume(), 'number'));
+                break;
 
-        case 'uint':
-            changes.push(replaceToken(scanner.consume(), 'number'));
-            break;
+            case 'String':
+                this.changes.push(replaceToken(this.scanner.consume(), 'string'));
+                break;
 
-        case 'String':
-            changes.push(replaceToken(scanner.consume(), 'string'));
-            break;
+            case 'Array':
+                this.changes.push(replaceToken(this.scanner.consume(), 'any[]'));
+                break;
 
-        case 'Array':
-            changes.push(replaceToken(scanner.consume(), 'any[]'));
-            break;
+            case 'Object':
+                this.changes.push(replaceToken(this.scanner.consume(), 'Record<string, any>'));
+                break;
 
-        case 'Object':
-            changes.push(replaceToken(scanner.consume(), 'Record<string, any>'));
-            break;
+            case '*':
+                this.changes.push(replaceToken(this.scanner.consume(), 'any'));
+                break;
 
-        case '*':
-            changes.push(replaceToken(scanner.consume(), 'any'));
-            break;
-
-        default:
-            scanner.consume();
-            break;
-
-    }
-}
-
-function removeIdentifierChain(scanner: Scanner, changes: ts.TextChange[]) {
-    if (scanner.match(TokenType.IDENTIFIER)) {
-        changes.push(replaceToken(scanner.consume()));
-        while (scanner.match(TokenType.DOT)) {
-            changes.push(replaceToken(scanner.consume()));
-            if (scanner.match(TokenType.IDENTIFIER)) {
-                changes.push(replaceToken(scanner.consume()));
-            }
-            else if (scanner.match(TokenType.MULT)) {
-                changes.push(replaceToken(scanner.consume()));
-            }
+            case 'Vector':
+                this.changes.push(replaceToken(this.scanner.consume(), 'Array'));
+                if (this.scanner.match(TokenType.DOTLESSTHAN)) {
+                    this.changes.push(replaceToken(this.scanner.consume(), '<'));
+                    this.replaceType();
+                }
+                break;
         }
     }
-    if (scanner.match(TokenType.SEMICOLON))
-        changes.push(replaceToken(scanner.consume()));
-}
 
-function handleDeclaration(scanner: Scanner, changes: ts.TextChange[], state: State) {
-    // Remove override
-    if (scanner.match(TokenType.IDENTIFIER, 'override')) {
-        changes.push(replaceToken(scanner.consume()));
+    private removeIdentifierChain() {
+        if (this.scanner.match(TokenType.IDENTIFIER)) {
+            this.changes.push(replaceToken(this.scanner.consume()));
+            while (this.scanner.match(TokenType.DOT)) {
+                this.changes.push(replaceToken(this.scanner.consume()));
+                if (this.scanner.match(TokenType.IDENTIFIER)) {
+                    this.changes.push(replaceToken(this.scanner.consume()));
+                }
+                else if (this.scanner.match(TokenType.MULT)) {
+                    this.changes.push(replaceToken(this.scanner.consume()));
+                }
+            }
+        }
+        if (this.scanner.match(TokenType.SEMICOLON))
+            this.changes.push(replaceToken(this.scanner.consume()));
     }
 
-    const accessModifier = scanner.consume(TokenType.PUBLIC) ||
-        scanner.consume(TokenType.PROTECTED) ||
-        scanner.consume(TokenType.PRIVATE) ||
-        scanner.consume(TokenType.IDENTIFIER, 'internal');
+    private declarationInPackage() {
+        // Remove override
+        const accessModifier = this.scanner.consume(TokenType.PUBLIC) ||
+            this.scanner.consume(TokenType.PROTECTED) ||
+            this.scanner.consume(TokenType.PRIVATE) ||
+            this.scanner.consume(TokenType.IDENTIFIER, 'internal');
 
-    const modifiers = [];
-    while (scanner.match(TokenType.IDENTIFIER))
-        modifiers.push(scanner.consume());
+        const modifiers = [];
+        while (this.scanner.match(TokenType.IDENTIFIER))
+            modifiers.push(this.scanner.consume());
 
-    const declareToken = scanner.consume(TokenType.FUNCTION) ||
-        scanner.consume(TokenType.VAR) ||
-        scanner.consume(TokenType.CLASS) ||
-        scanner.consume(TokenType.INTERFACE) ||
-        scanner.consume(TokenType.CONST);
+        const declareToken = this.scanner.consume(TokenType.FUNCTION) ||
+            this.scanner.consume(TokenType.VAR) ||
+            this.scanner.consume(TokenType.CLASS) ||
+            this.scanner.consume(TokenType.INTERFACE) ||
+            this.scanner.consume(TokenType.CONST);
 
-    if (declareToken) {
-        if (declareToken.type === TokenType.CLASS || declareToken.type === TokenType.INTERFACE) {
-            state.foundClass = true;
+        if (declareToken) {
             // public | internal -> export
             // protected | private -> ''
-            // static -> static
-            // override | virtual | final -> ''
-            // class -> class
             if (accessModifier) {
-                if (accessModifier.type === TokenType.PUBLIC || scanner.getTokenText(accessModifier) === 'internal') {
-                    changes.push(replaceToken(accessModifier, 'export'));
+                if (accessModifier.type === TokenType.PUBLIC || this.scanner.getTokenText(accessModifier) === 'internal') {
+                    this.changes.push(replaceToken(accessModifier, 'export'));
                 }
                 else {
-                    changes.push(replaceToken(accessModifier));
+                    this.changes.push(replaceToken(accessModifier));
                 }
             }
 
+            // final -> ''
             for (const modifier of modifiers)
-                if (scanner.getTokenText(modifier) !== 'static')
-                    changes.push(replaceToken(modifier));
+                this.changes.push(replaceToken(modifier));
+
+            // class -> class
+            // interface -> interface
+            // function | var | const -> function | var | const
+            if (declareToken.type === TokenType.CLASS) {
+                this.state.newScope = { type: 'class', token: declareToken };
+            }
+            else if (declareToken.type === TokenType.INTERFACE) {
+                this.state.newScope = { type: 'interface', token: declareToken };
+            }
         }
-        else if (
-            declareToken.type === TokenType.FUNCTION ||
-            declareToken.type === TokenType.VAR ||
-            declareToken.type === TokenType.CONST
-        ) {
-            if (!~state.insideClass) {
-                // public | internal -> export
-                // protected | private -> ''
-                // static | override | virtual | final -> ''
-                // function | var | const -> function | var | const
-                if (accessModifier) {
-                    if (accessModifier.type === TokenType.PUBLIC || scanner.getTokenText(accessModifier) === 'internal') {
-                        changes.push(replaceToken(accessModifier, 'export'));
-                    }
-                    else {
-                        changes.push(replaceToken(accessModifier));
-                    }
+    }
+
+    private declarationInClass() {
+        // Remove override
+        const override = this.scanner.consume(TokenType.IDENTIFIER, 'override');
+
+        const accessModifier = this.scanner.consume(TokenType.PUBLIC) ||
+            this.scanner.consume(TokenType.PROTECTED) ||
+            this.scanner.consume(TokenType.PRIVATE) ||
+            this.scanner.consume(TokenType.IDENTIFIER, 'internal');
+
+        if (override && accessModifier) {
+            this.changes.push(replaceToken(override));
+        }
+
+        const modifiers = [];
+        while (this.scanner.match(TokenType.IDENTIFIER))
+            modifiers.push(this.scanner.consume());
+
+        const declareToken = this.scanner.consume(TokenType.FUNCTION) ||
+            this.scanner.consume(TokenType.VAR) ||
+            this.scanner.consume(TokenType.CONST);
+
+        if (declareToken) {
+            // internal -> public
+            // public | protected | private -> public | protected | private
+            // static -> static
+            // override | virtual | final -> ''
+            // function | var | const -> ''
+            if (accessModifier) {
+                if (this.scanner.getTokenText(accessModifier) === 'internal') {
+                    this.changes.push(replaceToken(accessModifier, 'public'));
                 }
 
                 for (const modifier of modifiers)
-                    changes.push(replaceToken(modifier));
-            }
-            else {
-                // internal -> public
-                // public | protected | private -> public | protected | private
-                // static -> static
-                // override | virtual | final -> ''
-                // function | var | const -> ''
-                if (accessModifier) {
-                    if (scanner.getTokenText(accessModifier) === 'internal') {
-                        changes.push(replaceToken(accessModifier, 'public'));
-                    }
+                    if (this.scanner.getTokenText(modifier) !== 'static')
+                        this.changes.push(replaceToken(modifier));
 
-                    for (const modifier of modifiers)
-                        if (scanner.getTokenText(modifier) !== 'static')
-                            changes.push(replaceToken(modifier));
-
-                    changes.push(replaceToken(declareToken));
-                }
+                this.changes.push(replaceToken(declareToken));
             }
         }
     }
 }
-
-// function removeMatchingBraces(scanner: Scanner, changes: ts.TextChange[]) {
-//     const startPos = scanner.pos;
-//     const startToken = scanner.peek();
-
-//     // Find first open brace index
-//     scanner.eatWhileNot(TokenType.LEFTBRACE);
-//     const leftBraceToken = scanner.consume();
-
-//     // Find matching close brace index
-//     let braceCounter = 1;
-//     let rightBraceToken;
-//     // console.log('brace ' + braceCounter);
-//     while (!scanner.eos()) {
-//         if (scanner.match(TokenType.LEFTBRACE)) {
-//             braceCounter++;
-//             // console.log('brace++ ' + braceCounter);
-//             scanner.consume();
-//         }
-//         else if (scanner.match(TokenType.RIGHTBRACE)) {
-//             braceCounter--;
-//             // console.log('brace-- ' + braceCounter);
-//             rightBraceToken = scanner.consume();
-//         }
-
-//         if (braceCounter === 0)
-//             break;
-
-//         scanner.eatWhileNot(TokenType.LEFTBRACE, TokenType.RIGHTBRACE);
-//     }
-
-//     if (!rightBraceToken)
-//         throw new Error(`Could not find matching closing brace starting from [${startToken.start}] "${scanner.getTokenText(startToken)}". Mismatch count ${braceCounter}`);
-
-//     scanner.pos = startPos;
-
-//     // Remove braces
-//     changes.push(replaceToken(leftBraceToken));
-//     changes.push(replaceToken(rightBraceToken));
-// }
