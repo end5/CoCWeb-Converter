@@ -280,6 +280,14 @@ export class Converter {
                     this.state.rightBraceMod.push({ depth: this.state.braceCounter + 1, replace: '// }' });
                 }
                 break;
+
+            case TokenType.DOUBLEDOT:
+                this.changes.push(replaceToken(this.scanner.consume(), '.'));
+                break;
+
+            case TokenType.ATSIGN:
+                this.changes.push(replaceToken(this.scanner.consume()));
+                break;
         }
     }
 
