@@ -1,10 +1,15 @@
 package app;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileInputStream;
-import java.io.PrintStream;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import macromedia.asc.parser.Scanner;
@@ -13,15 +18,37 @@ import macromedia.asc.util.Context;
 import macromedia.asc.util.ContextStatics;
 
 class App {
-    public static void main(String[] args) throws Exception {
+    public static void writeToFile(String fileName, String text) throws IOException {
+        BufferedWriter writer = new BufferedWriter(new FileWriter(fileName));
+        writer.write(text);
 
-        BufferedInputStream buffer = new BufferedInputStream(new FileInputStream(args[0]));
+        writer.close();
+    }
 
-        Scanner scanner = new Scanner(new Context(new ContextStatics()), buffer, "UTF-8", args[0]);
+    public static void getAS3Files(File dir, List<File> list) {
+        if (!dir.isDirectory()) {
+            list.add(dir);
+        }
+        else {
+            File[] files = dir.listFiles();
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    getAS3Files(file, list);
+                } else if (file.toString().endsWith(".as")) {
+                    list.add(file);
+                }
+            }
+        }
+    }
+
+    public static void tokenize(File file) throws JsonProcessingException, IOException {
+        BufferedInputStream buffer = new BufferedInputStream(new FileInputStream(file));
+
+        Scanner scanner = new Scanner(new Context(new ContextStatics()), buffer, "UTF-8", file.toString());
         // final String text = scanner.input.source();
 
         // for (int i = 0; i < 20; i++)
-        //     System.out.println(text.codePointAt(i));
+        // System.out.println(text.codePointAt(i));
 
         // System.out.println(scanner.input.source());
 
@@ -37,20 +64,11 @@ class App {
             }
         }
 
-        class ReturnObj {
-            public ArrayList<Token> list = new ArrayList<Token>();
-            public String text;
-        }
-
-        ReturnObj obj = new ReturnObj();
-        obj.text = scanner.input.source();
-
-        // ArrayList<Token> list = new ArrayList<Token>();
+        ArrayList<Token> list = new ArrayList<Token>();
 
         int start = 0;
         int token;
         int length = 0;
-        // String tokenText;
 
         do {
             token = scanner.nexttoken(false);
@@ -69,15 +87,16 @@ class App {
             // else
             // tokenText = "";
             // if (start >= text.length())
-            //     start = text.length() - 1;
+            // start = text.length() - 1;
             // if (start + length >= text.length())
-            //     length = text.length() - start - 1;
+            // length = text.length() - start - 1;
 
             // list.add(new Token(-1 * token, startPos, tokenText));
-            obj.list.add(new Token(-1 * token, start, length));
+            list.add(new Token(-1 * token, start, length));
 
             // if (curPos < text.length()) {
             // String substr = text.substring(startPos, curPos);
+            // String substr = scanner.input.source().substring(start, start + length);
 
             // if (!tokenText.equals(substr)) {
             // System.out.println("[" + startPos + ":" + curPos + "] " +
@@ -93,14 +112,30 @@ class App {
             // substr = text.substring(startPos, curPos);
 
             // System.out.println("[" + startPos + ":" + curPos + "] \"" + substr + "\"");
+            // System.out.println("[" + start + ":" + (start + length) + "] " +
+            // Tokens.tokenClassNames[-1 * token] + " \"" + substr + "\"");
             // }
             // }
         } while (token != Tokens.EOS_TOKEN);
 
         ObjectMapper mapper = new ObjectMapper();
-        PrintStream ps = new PrintStream(System.out, true, "UTF-8");
-        ps.println(mapper.writeValueAsString(obj));
-        // mapper.writeValueAsString(list);
+        // PrintStream ps = new PrintStream(System.out, true, "UTF-8");
+        // ps.println(mapper.writeValueAsString(obj));
+        // mapper.writeValueAsString(obj);
         // ps.println("");
+
+        writeToFile(file.toString().replace(".as", ".tkns"), mapper.writeValueAsString(list));
+
+    }
+
+    public static void main(String[] args) throws Exception {
+        List<File> fileList = new ArrayList<File>();
+        
+        getAS3Files(new File(args[0]), fileList);
+
+        for (File file : fileList) {
+            System.out.println("Tokenizing " + file.toString());
+            tokenize(file);
+        }
     }
 }
