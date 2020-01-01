@@ -2,8 +2,8 @@
     "compilerOptions": {
         "target": "es6",
         "module": "commonjs",
-        "sourceMap": true,
-        "outDir": "Build",
+        "declaration": true,
+        "outDir": "dist",
         "strict": true,
         "noUnusedLocals": true,
         "forceConsistentCasingInFileNames": true,

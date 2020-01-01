@@ -1,8 +1,9 @@
-import * as ts from "typescript";
-import { Project } from "ts-morph";
-
-export function addMissingSuper(tsConfigFilePath: string) {
-    const project = new Project({ tsConfigFilePath });
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const ts = require("typescript");
+const ts_morph_1 = require("ts-morph");
+function addMissingSuper(tsConfigFilePath) {
+    const project = new ts_morph_1.Project({ tsConfigFilePath });
     const sourceFiles = project.getSourceFiles();
     for (const sourceFile of sourceFiles) {
         for (const classNode of sourceFile.getClasses()) {
@@ -16,6 +17,6 @@ export function addMissingSuper(tsConfigFilePath: string) {
             }
         }
     }
-
     project.save();
 }
+exports.addMissingSuper = addMissingSuper;
