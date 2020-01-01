@@ -1,22 +1,33 @@
-import * as child_process from "child_process";
+// import * as child_process from "child_process";
 import { Token, TokenType } from "./Token";
+import { readFileSync, existsSync } from "fs";
 
 export class Scanner {
     public pos = 0;
     public readonly text: string;
-    private list: Token[];
+    public list: Token[];
 
     public constructor(source: string) {
-        const child = child_process.spawnSync(
-            'java', ['-cp', 'tokenizer/external/*;tokenizer/bin;', 'app.App', source]
-        );
+        // const child = child_process.spawnSync(
+        //     'java', ['-cp', 'tokenizer/external/*;tokenizer/bin;', 'app.App', source]
+        // );
 
-        if (child.stderr)
-            console.error(child.stderr.toString());
+        // if (child.stderr)
+        //     console.error(child.stderr.toString());
 
-        const obj: { list: Token[], text: string } = JSON.parse(child.stdout.toString());
-        this.list = obj.list;
-        this.text = obj.text;
+        // const obj: { list: Token[], text: string } = JSON.parse(child.stdout.toString());
+
+        const tokenPath = source.replace('.as', '.tkns');
+        if (!existsSync(tokenPath))
+            throw new Error('Token file does not exist. Please run tokenizer');
+
+        this.list = JSON.parse(readFileSync(tokenPath).toLocaleString());
+        
+        let text = readFileSync(source).toString();
+        if (text.charCodeAt(0) === 0xFEFF) {
+            text = text.slice(1);
+        }
+        this.text = text;
     }
 
     /**

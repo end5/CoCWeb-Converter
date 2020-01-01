@@ -1,4 +1,5 @@
 import * as ts from "typescript";
+// import { TokenType, Token, tokenToString } from "./Token";
 import { TokenType, Token } from "./Token";
 import { Scanner } from "./Scanner";
 import { applyTextChanges } from "./TextChanges";
@@ -13,13 +14,14 @@ function replaceToken(token: Token, text?: string): ts.TextChange {
     };
 }
 
-type ScopeType = 'program' | 'package' | 'class' | 'interface';
+type ScopeType = 'program' | 'package' | 'class' | 'interface' | 'function';
 
 interface State {
     braceCounter: number;
     scope: { type: ScopeType, depth: number }[];
     newScope: { type: ScopeType, token: Token } | undefined;
     rightBraceMod: { depth: number, replace: string }[];
+    className: string;
 }
 
 /**
@@ -36,7 +38,8 @@ export class Converter {
         braceCounter: 0,
         scope: [],
         newScope: undefined,
-        rightBraceMod: []
+        rightBraceMod: [],
+        className: ''
     };
 
     public constructor(source: string) {
@@ -47,6 +50,7 @@ export class Converter {
         let pos;
         while (!this.scanner.eos()) {
             pos = this.scanner.pos;
+            // console.log(tokenToString(this.scanner.peek(), this.scanner.text));
             // Scope does NOT match how scope is handled in the language
             switch (this.getScope()) {
                 case 'program':
@@ -60,6 +64,9 @@ export class Converter {
                     break;
                 case 'class':
                     this.classScope();
+                    break;
+                case 'function':
+                    this.functionScope();
                     break;
             }
             switch (this.scanner.peek().type) {
@@ -95,6 +102,9 @@ export class Converter {
                             if (scope.type === 'package')
                                 this.changes.push(replaceToken(rightBrace));
 
+                            if (scope.type === 'class')
+                                this.state.className = '';
+
                             this.state.scope.pop();
                             // console.log('scope: ' + this.getScope() + ' <- ' + scope.type);
                         }
@@ -105,7 +115,49 @@ export class Converter {
 
                 case TokenType.COLON:
                     this.scanner.consume();
+                    const typeToken = this.scanner.peek();
+                    const typeText = this.scanner.getTokenText();
                     this.replaceType();
+                    if (typeText !== 'null' && this.scanner.consume(TokenType.EQUALS) && this.scanner.consume(TokenType.NULL))
+                        this.changes.push(replaceToken(typeToken, typeText + ' | null'))
+                    break;
+
+                case TokenType.IMPORT:
+                    this.changes.push(replaceToken(this.scanner.consume()));
+
+                    this.removeIdentifierChain();
+
+                    break;
+
+                case TokenType.LEFTBRACKET:
+                    let prev = this.scanner.consume();
+                    if (this.scanner.match(TokenType.IDENTIFIER, 'Embed')) {
+                        this.changes.push(this.commentToken(prev));
+
+                        let cur = this.scanner.consume();
+                        if (this.scanner.text.substring(prev.start, cur.start).includes('\n'))
+                            this.changes.push(this.commentToken(cur));
+                        prev = cur;
+
+                        let bracketCounter = 1;
+                        while (bracketCounter > 0) {
+                            cur = this.scanner.peek();
+
+                            if (cur.type === TokenType.LEFTBRACKET)
+                                bracketCounter++;
+                            else if (cur.type === TokenType.RIGHTBRACKET)
+                                bracketCounter--;
+
+                            if (this.scanner.text.substring(prev.start, cur.start).includes('\n'))
+                                this.changes.push(this.commentToken(cur));
+
+                            prev = cur;
+                            cur = this.scanner.consume();
+                        }
+                    }
+                    else if (this.scanner.match(TokenType.IDENTIFIER, 'Serialize')) {
+                        this.changes.push(this.commentToken(prev));
+                    }
                     break;
 
             }
@@ -127,30 +179,19 @@ export class Converter {
     private programScope() {
         switch (this.scanner.peek().type) {
             case TokenType.PACKAGE:
-                // changes.push(replaceToken(scanner.consume(), '// package'));
                 const packageToken = this.scanner.consume();
                 this.changes.push(replaceToken(packageToken));
 
                 this.removeIdentifierChain();
 
                 this.state.newScope = { type: 'package', token: packageToken };
-                // removeMatchingBraces(scanner, changes);
                 break;
         }
     }
 
     private packageScope() {
         switch (this.scanner.peek().type) {
-            case TokenType.IMPORT:
-                // changes.push(replaceToken(scanner.consume(), '// import'));
-                this.changes.push(replaceToken(this.scanner.consume()));
-
-                this.removeIdentifierChain();
-
-                break;
-
             case TokenType.USE:
-                // changes.push(replaceToken(scanner.consume(), '// use'));
                 // Simplifying this because only "use namespace kGAMECLASS" is found in CoC Vanilla code
                 this.changes.push(replaceToken(this.scanner.consume())); // use
                 this.changes.push(replaceToken(this.scanner.consume())); // namespace
@@ -163,7 +204,7 @@ export class Converter {
                 break;
 
             case TokenType.INCLUDE:
-                this.changes.push(replaceToken(this.scanner.consume(), '// include'));
+                this.changes.push(this.commentToken(this.scanner.consume()));
                 break;
 
             case TokenType.PUBLIC:
@@ -174,6 +215,14 @@ export class Converter {
                 break;
 
             case TokenType.IDENTIFIER:
+                if (!this.state.className && this.state.newScope && this.state.newScope.type === 'class') {
+                    this.state.className = this.scanner.getTokenText();
+                    // console.log('class name: ' + this.state.className);
+                    this.scanner.consume();
+                    break;
+                }
+            
+            case TokenType.STATIC:
                 switch (this.scanner.getTokenText()) {
                     case 'override':
                     case 'internal':
@@ -194,22 +243,63 @@ export class Converter {
 
     private classScope() {
         switch (this.scanner.peek().type) {
+            case TokenType.INCLUDE:
+                this.changes.push(this.commentToken(this.scanner.consume()));
+                break;
+
+            case TokenType.PUBLIC:
+            case TokenType.PROTECTED:
+            case TokenType.PRIVATE:
+                this.declarationInClass();
+                break;
+
+            case TokenType.IDENTIFIER:
+                switch (this.scanner.getTokenText()) {
+                    case 'flash_proxy':
+                    case 'override':
+                    case 'internal':
+                        this.declarationInClass();
+                        break;
+
+                    case 'Vector':
+                        this.replaceType();
+                        break;
+
+                    case 'CONFIG':
+                        const config = this.scanner.consume();
+                        this.changes.push(this.commentToken(config));
+
+                        while (this.scanner.consume(TokenType.DOUBLECOLON) || this.scanner.consume(TokenType.IDENTIFIER));
+
+                        if (this.scanner.match(TokenType.LEFTBRACE)) {
+                            const leftBrace = this.scanner.peek();
+                            if (this.scanner.text.substring(config.start, leftBrace.start).includes('\n'))
+                                this.changes.push(this.commentToken(leftBrace));
+
+                            this.state.rightBraceMod.push({ depth: this.state.braceCounter + 1, replace: '// }' });
+                        }
+
+                        break;
+
+                }
+                break;
+        }
+    }
+
+    private functionScope() {
+        switch (this.scanner.peek().type) {
 
             case TokenType.XMLMARKUP:
                 const token = this.scanner.consume();
                 this.changes.push(replaceToken(token, '`' + this.scanner.text.substr(token.start, token.length) + '`'));
                 break;
 
-            case TokenType.INCLUDE:
-                this.changes.push(replaceToken(this.scanner.consume(), '// include'));
-                break;
-
             case TokenType.FOR:
                 this.scanner.consume();
-                // let isForEach = false;
+                let isForEach = false;
                 if (this.scanner.match(TokenType.IDENTIFIER, 'each')) {
                     this.changes.push(replaceToken(this.scanner.consume()));
-                    // isForEach = true;
+                    isForEach = true;
                 }
 
                 this.scanner.consume(TokenType.LEFTPAREN);
@@ -225,21 +315,16 @@ export class Converter {
                     this.changes.push(replaceToken(this.scanner.consume()));
                 }
 
-                // if (isForEach) {
-                //     if (scanner.match(TokenType.IN))
-                //         changes.push(replaceToken(scanner.consume(), 'of'));
-                // }
+                if (isForEach) {
+                    if (this.scanner.match(TokenType.IN))
+                        this.changes.push(replaceToken(this.scanner.consume(), 'of'));
+                }
 
-                break;
-
-            case TokenType.PUBLIC:
-            case TokenType.PROTECTED:
-            case TokenType.PRIVATE:
-                this.declarationInClass();
                 break;
 
             case TokenType.IDENTIFIER:
                 switch (this.scanner.getTokenText()) {
+                    case 'flash_proxy':
                     case 'override':
                     case 'internal':
                         this.declarationInClass();
@@ -251,14 +336,14 @@ export class Converter {
 
                     case 'CONFIG':
                         const config = this.scanner.consume();
-                        this.changes.push(replaceToken(config, '// CONFIG'));
+                        this.changes.push(this.commentToken(config));
 
                         while (this.scanner.consume(TokenType.DOUBLECOLON) || this.scanner.consume(TokenType.IDENTIFIER));
 
                         if (this.scanner.match(TokenType.LEFTBRACE)) {
                             const leftBrace = this.scanner.peek();
                             if (this.scanner.text.substring(config.start, leftBrace.start).includes('\n'))
-                                this.changes.push(replaceToken(leftBrace, '// {'));
+                                this.changes.push(this.commentToken(leftBrace));
 
                             this.state.rightBraceMod.push({ depth: this.state.braceCounter + 1, replace: '// }' });
                         }
@@ -270,15 +355,6 @@ export class Converter {
 
             case TokenType.IS:
                 this.changes.push(replaceToken(this.scanner.consume(), 'instanceof'));
-                break;
-
-            case TokenType.SEMICOLON:
-                this.scanner.consume();
-                if (this.scanner.match(TokenType.LEFTBRACE)) {
-                    const leftBrace = this.scanner.peek();
-                    this.changes.push(replaceToken(leftBrace, '// {'));
-                    this.state.rightBraceMod.push({ depth: this.state.braceCounter + 1, replace: '// }' });
-                }
                 break;
 
             case TokenType.DOUBLEDOT:
@@ -395,10 +471,14 @@ export class Converter {
             else if (declareToken.type === TokenType.INTERFACE) {
                 this.state.newScope = { type: 'interface', token: declareToken };
             }
+            else if (declareToken.type === TokenType.FUNCTION) {
+                this.state.newScope = { type: 'function', token: declareToken };
+            }
         }
     }
 
     private declarationInClass() {
+        this.scanner.consume(TokenType.IDENTIFIER, 'flash_proxy');
         // Remove override
         const override = this.scanner.consume(TokenType.IDENTIFIER, 'override');
 
@@ -436,6 +516,18 @@ export class Converter {
 
                 this.changes.push(replaceToken(declareToken));
             }
+            if (declareToken.type === TokenType.FUNCTION) {
+                this.state.newScope = { type: 'function', token: declareToken };
+
+                if (this.scanner.getTokenText() === this.state.className) {
+                    this.changes.push(replaceToken(this.scanner.consume(), 'constructor'));
+                }
+            }
         }
     }
+
+    private commentToken(token: Token): ts.TextChange {
+        return replaceToken(token, '// ' + this.scanner.text.substring(token.start, token.start + token.length));
+    }
+
 }

@@ -288,3 +288,9 @@ export const tokenClassNames = [
     "abbrev_mode",
     "full_mode"
 ];
+
+export function tokenToString(token: Token, text: string) {
+    return tokenClassNames[token.type] + ' '.repeat(25 - tokenClassNames[token.type].length) +
+    ' '.repeat(6 - String(token.start).length) + String(token.start) +
+    ' |' + text.slice(token.start, token.start + token.length) + '|';
+}

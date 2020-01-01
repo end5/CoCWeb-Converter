@@ -1,8 +1,8 @@
-import { writeFileSync, renameSync, existsSync, lstatSync } from "fs";
+import { existsSync, lstatSync, writeFile } from "fs";
 import { walk } from "../src/Walk";
 import { Converter } from "../src/Convert";
-import { fixConstructor } from "../src/FixConstructor";
 
+// Command line arg for file or directory to start
 const fileOrDir = process.argv[2];
 
 let fileList = [fileOrDir];
@@ -14,8 +14,5 @@ for (const file of fileList) {
 
     let newText = new Converter(file).convert();
 
-    newText = fixConstructor(file, newText);
-
-    writeFileSync(file, newText);
-    renameSync(file, file.replace('.as', '.ts'));
+    writeFile(file, newText, (err) => { if (err) console.log(err) });
 }
