@@ -1,2 +1,2 @@
 import * as ts from "typescript";
-export declare function removeExtends(node: ts.SourceFile, extendsList: string[]): any[];
+export declare function removeExtends(node: ts.SourceFile, extendsList: string[]): ts.TextChange[];

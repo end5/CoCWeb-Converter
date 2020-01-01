@@ -12,6 +12,7 @@
     "exclude": [
         "src/old",
         "tokenizer",
-        "test"
+        "test",
+        "dist"
     ]
 }
