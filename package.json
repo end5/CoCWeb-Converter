@@ -3,6 +3,7 @@
     "version": "1.0.0",
     "description": "Scripts to help convert code from Corruption of Champions AS3 to Typescript",
     "main": "dist/run/index.js",
+    "bin": "dist/run/index.js",
     "dependencies": {
         "@types/node": "^13.1.2",
         "ts-morph": "^3.1.3",
