@@ -11,21 +11,21 @@ interface TextSpan {
     length: number;
 }
 
-export function addMissingPropertyAccessors(tsConfigFilePath: string) {
-    const project = new Project({ tsConfigFilePath });
-    const languageService = project.getLanguageService();
-    const tsLanguageService = languageService.compilerObject;
-    const fileNames = project.getSourceFiles().map(file => file.getFilePath());
-    for (const fileName of fileNames) {
-        const codeActions = tsLanguageService.getCombinedCodeFix({ type: "file", fileName }, 'forgottenThisPropertyAccess', {}, {});
-        const changes = codeActions.changes;
-        if (changes.length > 0) {
-            console.log('Fix missing property accessors ' + fileName);
-            const textChanges = changes[0].textChanges as TextChange[];
-            const text = ts.sys.readFile(fileName)!;
-            const newText = applyTextChanges(text, textChanges);
-            ts.sys.writeFile(fileName, newText);
-        }
+const tsConfigFilePath = process.argv[2];
+
+const project = new Project({ tsConfigFilePath });
+const languageService = project.getLanguageService();
+const tsLanguageService = languageService.compilerObject;
+const fileNames = project.getSourceFiles().map(file => file.getFilePath());
+for (const fileName of fileNames) {
+    const codeActions = tsLanguageService.getCombinedCodeFix({ type: "file", fileName }, 'forgottenThisPropertyAccess', {}, {});
+    const changes = codeActions.changes;
+    if (changes.length > 0) {
+        console.log('Fix missing property accessors ' + fileName);
+        const textChanges = changes[0].textChanges as TextChange[];
+        const text = ts.sys.readFile(fileName)!;
+        const newText = applyTextChanges(text, textChanges);
+        ts.sys.writeFile(fileName, newText);
     }
 }
 

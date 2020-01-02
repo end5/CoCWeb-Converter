@@ -1,14 +1,14 @@
 import { existsSync, lstatSync, renameSync } from "fs";
 import { walk } from "../src/Walk";
 
-export function changeExtension(fileOrDir: string) {
-    let fileList = [fileOrDir];
-    if (existsSync(fileOrDir) && lstatSync(fileOrDir).isDirectory())
-        fileList = walk(fileOrDir).filter((file) => file.endsWith('.as'));
+const fileOrDir = process.argv[2];
 
-    for (const file of fileList) {
-        console.log('Changing extension (.as -> .ts) for "' + file + '"');
+let fileList = [fileOrDir];
+if (existsSync(fileOrDir) && lstatSync(fileOrDir).isDirectory())
+    fileList = walk(fileOrDir).filter((file) => file.endsWith('.as'));
 
-        renameSync(file, file.replace('.as', '.ts'));
-    }
+for (const file of fileList) {
+    console.log('Changing extension (.as -> .ts) for "' + file + '"');
+
+    renameSync(file, file.replace('.as', '.ts'));
 }
